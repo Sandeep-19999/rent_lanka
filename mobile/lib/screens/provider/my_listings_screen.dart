@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'add_equipment_screen.dart';
+import 'listing_details_screen.dart';
 
 class MyListingsScreen extends StatelessWidget {
   const MyListingsScreen({super.key});
@@ -157,15 +158,13 @@ class MyListingsScreen extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '$name listing details will be connected next.',
-              ),
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const ListingDetailsScreen(),
+    ),
+  );
+},
         child: Container(
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
