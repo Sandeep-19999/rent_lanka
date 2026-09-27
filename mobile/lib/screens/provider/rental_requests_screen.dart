@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'request_details_screen.dart';
 
 class RentalRequestsScreen extends StatelessWidget {
   const RentalRequestsScreen({super.key});
@@ -50,210 +51,225 @@ class RentalRequestsScreen extends StatelessWidget {
                   const SizedBox(height: 30),
 
                   // Request Card
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFDDDDDD),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const RequestDetailsScreen(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFDDDDDD),
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      children: [
-                        // Top section
-                        Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            children: [
-                              const CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Color(0xFFEAEAEA),
-                                child: Icon(
-                                  Icons.person,
-                                  color: Colors.black54,
-                                ),
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              const Expanded(
-                                child: Text(
-                                  'Pushpa V.',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
+                      child: Column(
+                        children: [
+                          // Top section
+                          Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Color(0xFFEAEAEA),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.black54,
                                   ),
                                 ),
-                              ),
 
-                              const Text(
-                                '2 hours ago',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: textGrey,
+                                const SizedBox(width: 12),
+
+                                const Expanded(
+                                  child: Text(
+                                    'Pushpa V.',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
+
+                                const Text(
+                                  '2 hours ago',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: textGrey,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        const Divider(
-                          height: 1,
-                          color: Color(0xFFE5E5E5),
-                        ),
-
-                        // Details
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            14,
-                            14,
-                            14,
-                            12,
+                          const Divider(
+                            height: 1,
+                            color: Color(0xFFE5E5E5),
                           ),
-                          child: Column(
-                            children: [
-                              Row(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  const Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              'Requested: ',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: textGrey,
-                                              ),
-                                            ),
-                                            Text(
-                                              'SS Cricket Bat',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
 
-                                        SizedBox(height: 10),
-
-                                        Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 78,
-                                              child: Text(
-                                                'Dates:',
+                          // Details
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              14,
+                              14,
+                              14,
+                              12,
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                'Requested: ',
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   color: textGrey,
                                                 ),
                                               ),
-                                            ),
-                                            Text(
-                                              '12 Sep - 18 Sep',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
+                                              Text(
+                                                'SS Cricket Bat',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight:
+                                                      FontWeight.w800,
+                                                ),
                                               ),
+                                            ],
+                                          ),
+
+                                          SizedBox(height: 10),
+
+                                          Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 78,
+                                                child: Text(
+                                                  'Dates:',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: textGrey,
+                                                  ),
+                                                ),
+                                              ),
+                                              Text(
+                                                '12 Sep - 18 Sep',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight:
+                                                      FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 10),
+
+                                    const Text(
+                                      'Rs. 8,400',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: primaryRed,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                // Buttons
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 48,
+                                        child: OutlinedButton(
+                                          onPressed: () {
+                                            _showRejectDialog(context);
+                                          },
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.black,
+                                            side: const BorderSide(
+                                              color: Color(0xFFDADADA),
                                             ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 10),
-
-                                  const Text(
-                                    'Rs. 8,400',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: primaryRed,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 48,
-                                      child: OutlinedButton(
-                                        onPressed: () {
-                                          _showRejectDialog(context);
-                                        },
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.black,
-                                          side: const BorderSide(
-                                            color: Color(0xFFDADADA),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
                                           ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Reject',
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
+                                          child: const Text(
+                                            'Reject',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
 
-                                  const SizedBox(width: 14),
+                                    const SizedBox(width: 14),
 
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 48,
-                                      child: ElevatedButton(
-                                        onPressed: () {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Rental request accepted',
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 48,
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Rental request accepted',
+                                                ),
                                               ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: primaryRed,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
-                                          );
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: primaryRed,
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
                                           ),
-                                        ),
-                                        child: const Text(
-                                          'Accept',
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
+                                          child: const Text(
+                                            'Accept',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -342,7 +358,9 @@ class RentalRequestsScreen extends StatelessWidget {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Rental request rejected'),
+                    content: Text(
+                      'Rental request rejected',
+                    ),
                   ),
                 );
               },
