@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'add_equipment_screen.dart';
 import 'my_listings_screen.dart';
+import 'rental_requests_screen.dart';
 
 class ProviderDashboard extends StatelessWidget {
   const ProviderDashboard({super.key});
@@ -51,8 +52,13 @@ class ProviderDashboard extends StatelessWidget {
                     subtitle: '3 pending reviews',
                     showNotification: true,
                     onTap: () {
-                      _showComingSoon(context, 'Rental Requests');
-                    },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const RentalRequestsScreen(),
+    ),
+  );
+},
                   ),
 
                   const SizedBox(height: 14),

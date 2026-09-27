@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'availability_screen.dart';
 
 class ListingDetailsScreen extends StatelessWidget {
   const ListingDetailsScreen({super.key});
@@ -119,15 +120,14 @@ class ListingDetailsScreen extends StatelessWidget {
                   // Manage availability
                   InkWell(
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Availability screen will be connected next.',
-                          ),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) =>
+          const AvailabilityScreen(),
+    ),
+  );
+},
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       width: double.infinity,
