@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'add_equipment_screen.dart';
 import 'my_listings_screen.dart';
 import 'rental_requests_screen.dart';
@@ -6,77 +7,299 @@ import 'rental_requests_screen.dart';
 class ProviderDashboard extends StatelessWidget {
   const ProviderDashboard({super.key});
 
-  static const Color primaryRed = Color(0xFFE00122);
-  static const Color backgroundColor = Color(0xFFF8F8FA);
-  static const Color lightGrey = Color(0xFFF4F4F6);
-  static const Color textGrey = Color(0xFF8A8A8A);
+  static const Color primaryRed = Color(0xFFED1235);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: const Color(0xFFF8F8FA),
 
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 25),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
-                  const SizedBox(height: 20),
+                  // Header
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Color(0xFFE8E8E8),
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.black54,
+                          size: 28,
+                        ),
+                      ),
 
-                  _buildEarningsCard(),
-                  const SizedBox(height: 24),
+                      const SizedBox(width: 12),
 
-                  _buildQuickActions(context),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Welcome back,',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Kamal',
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      IconButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Notifications will be connected later.',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          size: 27,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // Earnings Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFED1235),
+                          Color(0xFFFF3653),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Total Earnings',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        const Text(
+                          'Rs. 34,500',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Available to withdraw',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Rs. 21,000',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            ElevatedButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Withdraw screen will be connected later.',
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: primaryRed,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Text(
+                                'Withdraw',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  const Text(
+                    'Quick Actions',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  // Quick Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.add_circle_outline,
+                          label: 'Add Item',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AddEquipmentScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.account_balance_wallet_outlined,
+                          label: 'Withdraw',
+                          onTap: () {
+                            _showComingSoon(
+                              context,
+                              'Withdraw',
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Insights',
+                          onTap: () {
+                            _showComingSoon(
+                              context,
+                              'Insights',
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.history,
+                          label: 'History',
+                          onTap: () {
+                            _showComingSoon(
+                              context,
+                              'History',
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 28),
 
                   const Text(
                     'Management',
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
 
                   const SizedBox(height: 14),
 
-                  _managementCard(
-                    icon: Icons.inbox_outlined,
-                    iconColor: primaryRed,
-                    iconBackground: const Color(0xFFFFEEF1),
+                  // Rental Requests
+                  _ManagementCard(
+                    icon: Icons.shopping_bag_outlined,
                     title: 'Rental Requests',
-                    subtitle: '3 pending reviews',
-                    showNotification: true,
+                    subtitle: 'View and manage rental requests',
+                    badgeText: '3',
                     onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const RentalRequestsScreen(),
-    ),
-  );
-},
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const RentalRequestsScreen(),
+                        ),
+                      );
+                    },
                   ),
 
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
-                  _managementCard(
-                    icon: Icons.inventory_2_outlined,
-                    iconColor: Colors.black,
-                    iconBackground: lightGrey,
+                  // My Equipment
+                  _ManagementCard(
+                    icon: Icons.sports_cricket,
                     title: 'My Equipment',
-                    subtitle: '12 items listed (8 Rented)',
+                    subtitle: 'Manage your equipment listings',
                     onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const MyListingsScreen(),
-    ),
-  );
-},
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const MyListingsScreen(),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 28),
@@ -84,49 +307,58 @@ class ProviderDashboard extends StatelessWidget {
                   const Text(
                     'Recent Activity',
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
 
                   const SizedBox(height: 14),
 
-                  _buildRecentActivity(),
-                  const SizedBox(height: 30),
+                  _ActivityCard(
+                    icon: Icons.check_circle_outline,
+                    title: 'Rental completed',
+                    subtitle: 'SS Cricket Bat',
+                    value: '+ Rs. 7,980',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _ActivityCard(
+                    icon: Icons.shopping_bag_outlined,
+                    title: 'New rental request',
+                    subtitle: 'Yonex Racket',
+                    value: 'Pending',
+                  ),
+
+                  const SizedBox(height: 28),
 
                   const Text(
                     'Top Earning Items',
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
 
                   const SizedBox(height: 14),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _earningItemCard(
-                          icon: Icons.sports_cricket,
-                          itemName: 'SS Cricket Bat',
-                          earned: 'Rs. 14,400',
-                          rented: '12 times rented',
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _earningItemCard(
-                          icon: Icons.sports_tennis,
-                          itemName: 'Yonex Ball',
-                          earned: 'Rs. 9,600',
-                          rented: '12 times rented',
-                        ),
-                      ),
-                    ],
+                  _EquipmentCard(
+                    icon: Icons.sports_cricket,
+                    title: 'SS Cricket Bat',
+                    subtitle: '8 rentals',
+                    value: 'Rs. 9,600',
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+
+                  _EquipmentCard(
+                    icon: Icons.sports_tennis,
+                    title: 'Yonex Racket',
+                    subtitle: '6 rentals',
+                    value: 'Rs. 4,800',
+                  ),
+
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
@@ -134,405 +366,291 @@ class ProviderDashboard extends StatelessWidget {
         ),
       ),
 
-      bottomNavigationBar: _buildBottomNavigation(),
+      bottomNavigationBar: _buildBottomNavigation(context),
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        const CircleAvatar(
-          radius: 24,
-          backgroundColor: Color(0xFFE5E5E5),
-          child: Icon(
-            Icons.person,
-            color: Colors.black54,
-            size: 28,
-          ),
-        ),
-
-        const SizedBox(width: 12),
-
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good morning,',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: textGrey,
-                ),
-              ),
-              Text(
-                'Provider',
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFFE6E6E6),
-            ),
-          ),
-          child: Stack(
-            children: [
-              const Center(
-                child: Icon(
-                  Icons.notifications_none_rounded,
-                  size: 25,
-                ),
-              ),
-              Positioned(
-                top: 9,
-                right: 10,
-                child: Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: primaryRed,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEarningsCard() {
+  // Bottom Navigation
+  Widget _buildBottomNavigation(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE00122),
-            Color(0xFFB7263B),
+      height: 75,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: Color(0xFFE8E8E8),
+          ),
+        ),
+      ),
+      child: Center(
+        child: SizedBox(
+          width: 420,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              const _BottomNavItem(
+                icon: Icons.grid_view_rounded,
+                label: 'Dashboard',
+                active: true,
+              ),
+
+              // My Items
+              _BottomNavItem(
+                icon: Icons.hexagon_outlined,
+                label: 'My Items',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const MyListingsScreen(),
+                    ),
+                  );
+                },
+              ),
+
+              // Requests
+              _BottomNavItem(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Requests',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const RentalRequestsScreen(),
+                    ),
+                  );
+                },
+              ),
+
+              _BottomNavItem(
+                icon: Icons.chat_bubble_outline,
+                label: 'Messages',
+                onTap: () {
+                  _showComingSoon(
+                    context,
+                    'Messages',
+                  );
+                },
+              ),
+
+              _BottomNavItem(
+                icon: Icons.person_outline,
+                label: 'Profile',
+                onTap: () {
+                  _showComingSoon(
+                    context,
+                    'Profile',
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _showComingSoon(
+    BuildContext context,
+    String screenName,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$screenName will be connected later.',
+        ),
+      ),
+    );
+  }
+}
+
+// Quick Action Widget
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          vertical: 15,
+          horizontal: 5,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFFE5E5E5),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: ProviderDashboard.primaryRed,
+              size: 26,
+            ),
+            const SizedBox(height: 7),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Total Earnings',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 13,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'All Time',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            'Rs. 34,500',
-            style: TextStyle(
-              fontSize: 42,
-              height: 1,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          const Text(
-            'Available to withdraw: Rs. 21,000',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
     );
   }
+}
 
-  Widget _buildQuickActions(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _quickAction(
-          icon: Icons.add,
-          label: 'Add Item',
-          iconColor: primaryRed,
-          background: const Color(0xFFFFEEF1),
-          onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const AddEquipmentScreen(),
-    ),
-  );
-},
-        ),
-        _quickAction(
-          icon: Icons.north_east,
-          label: 'Withdraw',
-          onTap: () {
-            _showComingSoon(context, 'Withdraw');
-          },
-        ),
-        _quickAction(
-          icon: Icons.bar_chart_rounded,
-          label: 'Insights',
-          onTap: () {
-            _showComingSoon(context, 'Insights');
-          },
-        ),
-        _quickAction(
-          icon: Icons.schedule,
-          label: 'History',
-          onTap: () {
-            _showComingSoon(context, 'History');
-          },
-        ),
-      ],
-    );
-  }
+// Management Card
+class _ManagementCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? badgeText;
+  final VoidCallback onTap;
 
-  Widget _quickAction({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color iconColor = Colors.black,
-    Color background = lightGrey,
-  }) {
+  const _ManagementCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.badgeText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: SizedBox(
-        width: 75,
-        child: Column(
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: const Color(0xFFE5E5E5),
+          ),
+        ),
+        child: Row(
           children: [
             Container(
-              width: 66,
-              height: 66,
+              width: 45,
+              height: 45,
               decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(18),
+                color: const Color(0xFFFFEEF1),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 icon,
-                size: 30,
-                color: iconColor,
+                color: ProviderDashboard.primaryRed,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+
+            const SizedBox(width: 13),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
               ),
+            ),
+
+            if (badgeText != null)
+              Container(
+                width: 25,
+                height: 25,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: ProviderDashboard.primaryRed,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  badgeText!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+
+            const SizedBox(width: 8),
+
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 15,
+              color: Colors.grey,
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _managementCard({
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBackground,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    bool showNotification = false,
-  }) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: iconBackground,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 26,
-                ),
-              ),
+// Activity Card
+class _ActivityCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String value;
 
-              const SizedBox(width: 15),
+  const _ActivityCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+  });
 
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: textGrey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: const BoxDecoration(
-                      color: lightGrey,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.chevron_right,
-                      size: 27,
-                    ),
-                  ),
-
-                  if (showNotification)
-                    Positioned(
-                      top: -3,
-                      right: -2,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: primaryRed,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecentActivity() {
+  @override
+  Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          _activityRow(
-            icon: Icons.check,
-            iconBackground: const Color(0xFFE8F7EC),
-            iconColor: const Color(0xFF3BB85A),
-            title: 'Payment Received',
-            subtitle: 'Yonex Racket • Today, 10:30 AM',
-            trailing: '+ Rs. 800',
-            trailingColor: const Color(0xFF3BB85A),
-          ),
-
-          const Divider(
-            height: 1,
-            indent: 58,
-          ),
-
-          _activityRow(
-            icon: Icons.schedule,
-            iconBackground: const Color(0xFFFFF2DF),
-            iconColor: Colors.orange,
-            title: 'Rented Out',
-            subtitle: 'SS Cricket Bat • Yesterday',
-            trailing: 'Ongoing',
-            trailingColor: Colors.orange,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _activityRow({
-    required IconData icon,
-    required Color iconBackground,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required String trailing,
-    required Color trailingColor,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 15,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFE8E8E8),
+        ),
       ),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: iconBackground,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-            ),
+          Icon(
+            icon,
+            color: ProviderDashboard.primaryRed,
           ),
 
           const SizedBox(width: 12),
@@ -548,12 +666,12 @@ class ProviderDashboard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
                   style: const TextStyle(
-                    fontSize: 11,
-                    color: textGrey,
+                    fontSize: 12,
+                    color: Colors.grey,
                   ),
                 ),
               ],
@@ -561,172 +679,143 @@ class ProviderDashboard extends StatelessWidget {
           ),
 
           Text(
-            trailing,
-            style: TextStyle(
-              color: trailingColor,
+            value,
+            style: const TextStyle(
+              fontSize: 12,
               fontWeight: FontWeight.w700,
-              fontSize: 13,
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _earningItemCard({
-    required IconData icon,
-    required String itemName,
-    required String earned,
-    required String rented,
-  }) {
+// Equipment Card
+class _EquipmentCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String value;
+
+  const _EquipmentCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFE8E8E8),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Center(
-            child: SizedBox(
-              height: 100,
-              child: Icon(
-                icon,
-                size: 85,
-                color: Colors.black87,
-              ),
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F4F4),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.black87,
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(width: 12),
 
-          Text(
-            itemName,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(height: 3),
-
           Text(
-            'Earned: $earned',
+            value,
             style: const TextStyle(
-              color: primaryRed,
               fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-
-          const SizedBox(height: 3),
-
-          Text(
-            rented,
-            style: const TextStyle(
-              color: textGrey,
-              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: ProviderDashboard.primaryRed,
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildBottomNavigation() {
-  return Container(
-    height: 75,
-    decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(
-        top: BorderSide(
-          color: Color(0xFFE8E8E8),
-        ),
-      ),
-    ),
-    child: const Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 420,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _BottomNavItem(
-                icon: Icons.grid_view_rounded,
-                label: 'Dashboard',
-                active: true,
-              ),
-              _BottomNavItem(
-                icon: Icons.hexagon_outlined,
-                label: 'My Items',
-              ),
-              _BottomNavItem(
-                icon: Icons.shopping_bag_outlined,
-                label: 'Requests',
-              ),
-              _BottomNavItem(
-                icon: Icons.chat_bubble_outline,
-                label: 'Messages',
-              ),
-              _BottomNavItem(
-                icon: Icons.person_outline,
-                label: 'Profile',
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
-  void _showComingSoon(BuildContext context, String page) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$page screen will be connected next.'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-}
-
+// Bottom Navigation Item
 class _BottomNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
+  final VoidCallback? onTap;
 
   const _BottomNavItem({
     required this.icon,
     required this.label,
     this.active = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    const red = Color(0xFFE00122);
+    const red = Color(0xFFED1235);
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          color: active ? red : Colors.grey,
-          size: 24,
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        width: 67,
+        height: 65,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: active ? red : Colors.grey,
+            ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                color: active ? red : Colors.grey,
+                fontWeight:
+                    active ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 9,
-            color: active ? red : Colors.grey,
-            fontWeight: active
-                ? FontWeight.w700
-                : FontWeight.w400,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
