@@ -335,6 +335,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 
 class AddEquipmentScreen extends StatefulWidget {
   const AddEquipmentScreen({super.key});
@@ -424,7 +425,7 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
             double.parse(priceController.text.trim()),
 
         // Temporary until Firebase Authentication is connected
-        'providerId': 'demo_provider',
+        'providerId': AuthService.providerId,
 
         'status': 'Available',
         'isAvailable': true,

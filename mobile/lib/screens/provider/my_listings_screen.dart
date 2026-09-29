@@ -900,6 +900,7 @@ import 'package:flutter/material.dart';
 import 'add_equipment_screen.dart';
 import 'listing_details_screen.dart';
 import 'rental_requests_screen.dart';
+import '../../services/auth_service.dart';
 
 class MyListingsScreen extends StatelessWidget {
   const MyListingsScreen({super.key});
@@ -996,9 +997,9 @@ class MyListingsScreen extends StatelessWidget {
                     stream: FirebaseFirestore.instance
                         .collection('equipment')
                         .where(
-                          'providerId',
-                          isEqualTo: 'demo_provider',
-                        )
+  'providerId',
+  isEqualTo: AuthService.providerId,
+)
                         .snapshots(),
                     builder: (context, snapshot) {
                       // Error
