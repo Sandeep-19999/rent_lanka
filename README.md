@@ -1,6 +1,6 @@
 # Rent Lanka
 
-Sports Equipment Rental and Exchange Platform.
+Sports Equipment Rental and Exchange Platform for Sri Lanka.
 
 ## Technologies
 
