@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "1028308548721",
-    "project_id": "rent-lanka",
-    "storage_bucket": "rent-lanka.firebasestorage.app"
+    "project_number": "760220691970",
+    "project_id": "rent-lanka-b9100",
+    "storage_bucket": "rent-lanka-b9100.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1028308548721:android:03b272df56874d78406fd0",
+        "mobilesdk_app_id": "1:760220691970:android:1e5e2515d0cbfa5758811b",
         "android_client_info": {
           "package_name": "com.example.rent_lanka_mobile"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyA9e8WRnfM1C_HBxeDRuQaC1N7lQvPf2DM"
+          "current_key": "AIzaSyB_kOgz4gCOyKx1QmdUbPRh-8edVttLIXc"
         }
       ],
       "services": {
