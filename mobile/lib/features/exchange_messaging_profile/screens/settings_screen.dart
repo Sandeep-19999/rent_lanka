@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'accessibility_screen.dart';
+import 'payment_methods_screen.dart';
+import 'privacy_security_screen.dart';
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -66,7 +70,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Privacy & security',
                     subtitle: 'Password, verification',
                     onTap: () {
-                      _showComingSoon('Privacy & security');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PrivacySecurityScreen(),
+                        ),
+                      );
                     },
                   ),
 
@@ -79,7 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Payment methods',
                     subtitle: 'Manage saved cards',
                     onTap: () {
-                      _showComingSoon('Payment methods');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PaymentMethodsScreen(),
+                        ),
+                      );
                     },
                   ),
 
@@ -92,7 +106,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Accessibility',
                     subtitle: 'Display & text size',
                     onTap: () {
-                      _showComingSoon('Accessibility');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AccessibilityScreen(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -117,9 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Icon(Icons.arrow_back_ios_new, size: 22, color: darkText),
           ),
         ),
-
         const SizedBox(width: 34),
-
         const Text(
           'Settings',
           style: TextStyle(
@@ -155,9 +172,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: darkText,
                 ),
               ),
-
               SizedBox(height: 3),
-
               Text(
                 'Alerts & push messages',
                 style: TextStyle(fontSize: 13, color: greyText),
@@ -215,9 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: darkText,
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Text(
                   subtitle,
                   style: const TextStyle(fontSize: 13, color: greyText),
@@ -246,12 +259,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Icon(icon, size: 25, color: iconColor),
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature will be connected during integration.')),
     );
   }
 }

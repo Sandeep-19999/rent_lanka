@@ -1,12 +1,45 @@
 import 'package:flutter/material.dart';
 
+import '../models/transaction_record.dart';
+import 'transaction_details_screen.dart';
+
 class TransactionHistoryScreen extends StatelessWidget {
   const TransactionHistoryScreen({super.key});
 
   static const Color primaryRed = Color(0xFFED1235);
+
   static const Color darkText = Color(0xFF242424);
+
   static const Color greyText = Color(0xFF929292);
+
   static const Color successGreen = Color(0xFF16A34A);
+
+  static const List<TransactionRecord> transactions = [
+    TransactionRecord(
+      reference: 'SG-1048',
+      type: 'Payment',
+      date: '10 Sep 2026',
+      status: 'Confirmed',
+      amount: 'Rs. 10,400',
+      isRefund: false,
+      equipmentName: 'SS Cricket Bat',
+      providerName: 'Kamal Sports Gear',
+      paymentMethod: 'Visa ending 4242',
+      description: 'Payment for the rental of SS Cricket Bat. The booking and payment were confirmed successfully.',
+    ),
+    TransactionRecord(
+      reference: 'SG-0991',
+      type: 'Refund',
+      date: '6 Aug 2026',
+      status: 'Completed',
+      amount: 'Rs. 2,000',
+      isRefund: true,
+      equipmentName: 'Yonex Badminton Racket',
+      providerName: 'City Sports Shop',
+      paymentMethod: 'Visa ending 4242',
+      description: 'Refund issued for the cancelled equipment rental. The refund has been completed successfully.',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -25,25 +58,15 @@ class TransactionHistoryScreen extends StatelessWidget {
 
                   const SizedBox(height: 42),
 
-                  _buildTransactionItem(
-                    reference: 'SG-1048',
-                    type: 'Payment',
-                    date: '10 Sep',
-                    status: 'Confirmed',
-                    amount: 'Rs. 10,400',
-                    isRefund: false,
-                  ),
-
-                  const SizedBox(height: 34),
-
-                  _buildTransactionItem(
-                    reference: 'SG-0991',
-                    type: 'Refund',
-                    date: '6 Aug',
-                    status: 'Completed',
-                    amount: '+ Rs. 2,000',
-                    isRefund: true,
-                  ),
+                  ...transactions.map((transaction) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 28),
+                      child: _buildTransactionItem(
+                        context: context,
+                        transaction: transaction,
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -82,78 +105,103 @@ class TransactionHistoryScreen extends StatelessWidget {
   }
 
   Widget _buildTransactionItem({
-    required String reference,
-    required String type,
-    required String date,
-    required String status,
-    required String amount,
-    required bool isRefund,
+    required BuildContext context,
+    required TransactionRecord transaction,
   }) {
-    final Color accentColor = isRefund ? successGreen : primaryRed;
+    final Color accentColor = transaction.isRefund ? successGreen : primaryRed;
 
-    final Color iconBackground = isRefund
+    final Color iconBackground = transaction.isRefund
         ? const Color(0xFFE0F8E9)
         : const Color(0xFFFFEDF0);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: iconBackground,
-            borderRadius: BorderRadius.circular(14),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TransactionDetailsScreen(transaction: transaction),
           ),
-          child: Container(
-            width: 22,
-            height: 22,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: accentColor, width: 2),
-            ),
-            child: Icon(Icons.add, size: 15, color: accentColor),
-          ),
-        ),
-
-        const SizedBox(width: 14),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$reference ($type)',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: darkText,
+        );
+      },
+      borderRadius: BorderRadius.circular(15),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: iconBackground,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: accentColor, width: 2),
                 ),
+                child: Icon(Icons.add, size: 15, color: accentColor),
               ),
+            ),
 
-              const SizedBox(height: 5),
+            const SizedBox(width: 14),
 
-              Text(
-                '$date • $status',
-                style: const TextStyle(fontSize: 13, color: greyText),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${transaction.reference} (${transaction.type})',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: darkText,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    '${transaction.date} - ${transaction.status}',
+                    style: const TextStyle(fontSize: 13, color: greyText),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
 
-        const SizedBox(width: 12),
+            const SizedBox(width: 8),
 
-        Text(
-          amount,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: isRefund ? successGreen : darkText,
-          ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  transaction.isRefund
+                      ? '+ ${transaction.amount}'
+                      : transaction.amount,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: transaction.isRefund ? successGreen : darkText,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Color(0xFFC0C0C0),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
