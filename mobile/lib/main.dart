@@ -1,9 +1,33 @@
+// import 'package:flutter/material.dart';
+// import 'screens/provider/provider_dashboard.dart';
+
+// void main() {
+//   runApp(const RentLankaApp());
+// }
+
+// class RentLankaApp extends StatelessWidget {
+//   const RentLankaApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       title: 'Rent Lanka',
+//       theme: ThemeData(
+//         useMaterial3: true,
+//         scaffoldBackgroundColor: const Color(0xFFF8F8FA),
+//         fontFamily: 'Arial',
+//       ),
+//       home: const ProviderDashboard(),
+//     );
+//   }
+// }
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
-import 'screens/provider/provider_dashboard.dart';
-import 'screens/booking/equipment_details_screen.dart';
+import 'screens/dev_launcher_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,11 +42,6 @@ Future<void> main() async {
 class RentLankaApp extends StatelessWidget {
   const RentLankaApp({super.key});
 
-  static const bool bookingPreview = bool.fromEnvironment(
-    'BOOKING_PREVIEW',
-    defaultValue: false,
-  );
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -33,9 +52,8 @@ class RentLankaApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF8F8FA),
         fontFamily: 'Arial',
       ),
-      home: bookingPreview
-          ? const EquipmentDetailsScreen()
-          : const ProviderDashboard(),
+      // Temporary: replace with the Splash / Login flow once it is built.
+      home: const DevLauncherScreen(),
     );
   }
 }
