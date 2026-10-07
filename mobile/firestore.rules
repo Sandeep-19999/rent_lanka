@@ -1,0 +1,93 @@
+rules_version = '2';
+
+// Security rules for Rent Lanka.
+//
+// IMPORTANT: these rules require a signed-in Firebase Auth user. The app
+// currently falls back to 'demo_player' / 'demo_provider' ids when nobody is
+// logged in (see lib/services/auth_service.dart), so only deploy these once
+// Login / Sign Up is connected. Until then keep the console in test mode.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function onlyChanges(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // ---- Equipment listings (provider module) ----
+    match /equipment/{equipmentId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.providerId == request.auth.uid;
+      allow update, delete: if isUser(resource.data.providerId);
+    }
+
+    // ---- Bookings / rental requests ----
+    match /rental_requests/{bookingId} {
+      allow read: if isUser(resource.data.playerId) || isUser(resource.data.providerId);
+
+      // Players create their own pending booking for someone else's equipment.
+      allow create: if signedIn()
+        && request.resource.data.playerId == request.auth.uid
+        && request.resource.data.providerId != request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.totalPayable is number
+        && request.resource.data.totalPayable > 0
+        && request.resource.data.startDate <= request.resource.data.endDate;
+
+      // Player may only cancel a pending / accepted booking.
+      allow update: if (
+          isUser(resource.data.playerId)
+          && resource.data.status in ['pending', 'accepted']
+          && request.resource.data.status == 'cancelled'
+          && onlyChanges(['status', 'cancelReason', 'cancelledAt', 'statusUpdatedAt', 'paymentStatus'])
+        ) || (
+          // Provider accepts / rejects / hands over / completes.
+          isUser(resource.data.providerId)
+          && request.resource.data.playerId == resource.data.playerId
+          && request.resource.data.totalPayable == resource.data.totalPayable
+        );
+
+      allow delete: if false;
+    }
+
+    // ---- Booking slots (dates + status only, no personal data) ----
+    match /booking_slots/{bookingId} {
+      function booking() {
+        return get(/databases/$(database)/documents/rental_requests/$(bookingId)).data;
+      }
+
+      allow read: if signedIn();
+      // Created in the same batch as the player's booking.
+      allow create: if signedIn()
+        && getAfter(/databases/$(database)/documents/rental_requests/$(bookingId)).data.playerId == request.auth.uid;
+      allow update: if signedIn()
+        && (booking().playerId == request.auth.uid || booking().providerId == request.auth.uid)
+        && onlyChanges(['status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---- Payment records (append-only receipts) ----
+    match /payments/{paymentId} {
+      allow read: if isUser(resource.data.playerId) || isUser(resource.data.providerId);
+      allow create: if isUser(request.resource.data.playerId);
+      allow update, delete: if false;
+    }
+
+    // ---- Notifications ----
+    match /notifications/{notificationId} {
+      allow read: if isUser(resource.data.userId);
+      // Any signed-in user can notify another user (booking <-> provider).
+      allow create: if signedIn();
+      // Recipient can only mark as read.
+      allow update: if isUser(resource.data.userId) && onlyChanges(['isRead']);
+      allow delete: if isUser(resource.data.userId);
+    }
+  }
+}

@@ -408,6 +408,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/booking_service.dart';
+
 class PickupReturnScreen extends StatelessWidget {
   final String requestId;
 
@@ -431,6 +433,8 @@ class PickupReturnScreen extends StatelessWidget {
             FieldValue.serverTimestamp(),
         'status': 'active',
       });
+
+      await BookingService().syncSlotStatus(requestId, 'active');
 
       if (!context.mounted) return;
 
@@ -484,6 +488,8 @@ class PickupReturnScreen extends StatelessWidget {
             FieldValue.serverTimestamp(),
         'status': 'completed',
       });
+
+      await BookingService().syncSlotStatus(requestId, 'completed');
 
       if (!context.mounted) return;
 

@@ -12,7 +12,12 @@
           "package_name": "com.example.rent_lanka_mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1028308548721-0kv2h9a4ee09r39bggutma5cggp7pg3o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA9e8WRnfM1C_HBxeDRuQaC1N7lQvPf2DM"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1028308548721-0kv2h9a4ee09r39bggutma5cggp7pg3o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1028308548721-m4mmv0pq8ki3c9640bak84vaom6sipin.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.rentLankaMobile"
+              }
+            }
+          ]
         }
       }
     }

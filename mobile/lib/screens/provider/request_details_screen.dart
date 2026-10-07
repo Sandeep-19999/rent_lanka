@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/booking_service.dart';
 import 'pickup_return_screen.dart';
 
 class RequestDetailsScreen extends StatelessWidget {
@@ -30,6 +31,9 @@ class RequestDetailsScreen extends StatelessWidget {
         'status': status,
         'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Frees the dates again for players when a request is rejected.
+      await BookingService().syncSlotStatus(requestId, status);
 
       if (!context.mounted) return;
 
