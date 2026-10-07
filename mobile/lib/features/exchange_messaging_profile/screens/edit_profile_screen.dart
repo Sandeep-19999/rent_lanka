@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -9,27 +10,43 @@ class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  State<EditProfileScreen> createState() =>
+      _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState
+    extends State<EditProfileScreen> {
   static const Color primaryRed = Color(0xFFED1235);
   static const Color darkText = Color(0xFF242424);
-  static const Color greyText = Color(0xFF8F8F8F);
+  static const Color greyText = Color(0xFF7D7D7D);
+  static const Color borderColor = Color(0xFFE4E4E4);
+  static const Color backgroundColor = Color(0xFFF8F8F8);
 
-  final ProfileService _profileService = ProfileService();
-  final ImagePicker _imagePicker = ImagePicker();
+  final ProfileService _profileService =
+      ProfileService();
 
-  final TextEditingController _nameController = TextEditingController();
+  final ImagePicker _imagePicker =
+      ImagePicker();
 
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController
+      _nameController =
+      TextEditingController();
 
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController
+      _emailController =
+      TextEditingController();
 
-  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController
+      _phoneController =
+      TextEditingController();
+
+  final TextEditingController
+      _locationController =
+      TextEditingController();
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageFileName;
+
   String _existingPhotoUrl = '';
 
   bool _isLoading = true;
@@ -38,38 +55,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
+
     _loadProfile();
   }
 
   Future<void> _loadProfile() async {
     try {
-      final document = await _profileService.getProfile();
+      final document =
+          await _profileService.getProfile();
+
       final data = document.data();
 
-      if (data != null) {
-        _nameController.text = data['name']?.toString() ?? '';
+      final User? firebaseUser =
+          FirebaseAuth.instance.currentUser;
 
-        _emailController.text = data['email']?.toString() ?? '';
+      _nameController.text =
+          data?['name']?.toString() ??
+              firebaseUser?.displayName ??
+              '';
 
-        _phoneController.text = data['phone']?.toString() ?? '';
+      _emailController.text =
+          data?['email']?.toString() ??
+              firebaseUser?.email ??
+              '';
 
-        _locationController.text = data['location']?.toString() ?? '';
+      _phoneController.text =
+          data?['phone']?.toString() ??
+              firebaseUser?.phoneNumber ??
+              '';
 
-        _existingPhotoUrl = data['photoUrl']?.toString() ?? '';
-      } else {
-        _nameController.text = 'Jalitha';
-        _emailController.text = 'jalitha.v@email.com';
-        _phoneController.text = '+94 77 123 2356';
-        _locationController.text = 'Matara';
-      }
+      _locationController.text =
+          data?['location']?.toString() ?? '';
+
+      _existingPhotoUrl =
+          data?['photoUrl']?.toString() ?? '';
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to load profile: $error')));
+      _showMessage(
+        'Unable to load profile: $error',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -81,46 +106,71 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _pickProfilePhoto() async {
     try {
-      final XFile? pickedImage = await _imagePicker.pickImage(
+      final XFile? image =
+          await _imagePicker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 80,
         maxWidth: 1200,
       );
 
-      if (pickedImage == null) {
+      if (image == null) {
         return;
       }
 
-      final Uint8List bytes = await pickedImage.readAsBytes();
+      final Uint8List bytes =
+          await image.readAsBytes();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         _selectedImageBytes = bytes;
-        _selectedImageFileName = pickedImage.name;
+        _selectedImageFileName = image.name;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to select photo: $error')));
+      _showMessage(
+        'Unable to select photo: $error',
+      );
     }
   }
 
   Future<void> _saveChanges() async {
-    if (_nameController.text.trim().isEmpty ||
-        _emailController.text.trim().isEmpty ||
-        _phoneController.text.trim().isEmpty ||
-        _locationController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields.')),
-      );
+    FocusScope.of(context).unfocus();
 
+    final String name =
+        _nameController.text.trim();
+
+    final String email =
+        _emailController.text.trim();
+
+    final String phone =
+        _phoneController.text.trim();
+
+    final String location =
+        _locationController.text.trim();
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        location.isEmpty) {
+      _showMessage(
+        'Please complete all fields.',
+      );
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      _showMessage(
+        'Please enter a valid email address.',
+      );
+      return;
+    }
+
+    if (phone.length < 9) {
+      _showMessage(
+        'Please enter a valid phone number.',
+      );
       return;
     }
 
@@ -129,42 +179,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
-      String photoUrl = _existingPhotoUrl;
+      String photoUrl =
+          _existingPhotoUrl;
 
-      if (_selectedImageBytes != null && _selectedImageFileName != null) {
-        photoUrl = await _profileService.uploadProfilePhoto(
-          imageBytes: _selectedImageBytes!,
-          fileName: _selectedImageFileName!,
+      if (_selectedImageBytes != null &&
+          _selectedImageFileName != null) {
+        photoUrl =
+            await _profileService
+                .uploadProfilePhoto(
+          imageBytes:
+              _selectedImageBytes!,
+          fileName:
+              _selectedImageFileName!,
         );
       }
 
       await _profileService.saveProfile(
-        name: _nameController.text,
-        email: _emailController.text,
-        phone: _phoneController.text,
-        location: _locationController.text,
+        name: name,
+        email: email,
+        phone: phone,
+        location: location,
         photoUrl: photoUrl,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
-          content: Text('Profile updated successfully.'),
-          backgroundColor: Color(0xFF2E9B50),
+          content: Text(
+            'Profile updated successfully.',
+          ),
+          backgroundColor:
+              Color(0xFF2E9B50),
         ),
       );
 
       Navigator.pop(context);
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to update profile: $error')),
+      _showMessage(
+        'Unable to update profile: $error',
       );
     } finally {
       if (mounted) {
@@ -173,6 +229,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     }
+  }
+
+  bool _isValidEmail(
+    String email,
+  ) {
+    return RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(email);
+  }
+
+  void _showMessage(
+    String message,
+  ) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
   }
 
   @override
@@ -189,157 +265,138 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: primaryRed)),
+        backgroundColor: backgroundColor,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: primaryRed,
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          onPressed: () {
+            Navigator.maybePop(context);
+          },
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: darkText,
+          ),
+        ),
+        titleSpacing: 0,
+        title: const Text(
+          'Edit Profile',
+          style: TextStyle(
+            color: darkText,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: SafeArea(
-        child: Center(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+            constraints: const BoxConstraints(
+              maxWidth: 500,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                22,
+                18,
+                120,
+              ),
               child: Column(
                 children: [
-                  _buildHeader(),
+                  _buildProfilePhoto(),
 
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 28),
 
-                  _buildProfileImage(),
-
-                  const SizedBox(height: 22),
-
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('Full Name'),
-
-                          const SizedBox(height: 7),
-
-                          _buildTextField(
-                            controller: _nameController,
-                            icon: Icons.person_outline,
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          _buildLabel('Email Address'),
-
-                          const SizedBox(height: 7),
-
-                          _buildTextField(
-                            controller: _emailController,
-                            icon: Icons.mail_outline,
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          _buildLabel('Phone Number'),
-
-                          const SizedBox(height: 7),
-
-                          _buildTextField(
-                            controller: _phoneController,
-                            icon: Icons.phone_outlined,
-                            keyboardType: TextInputType.phone,
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          _buildLabel('Location', color: primaryRed),
-
-                          const SizedBox(height: 7),
-
-                          _buildLocationField(),
-
-                          const SizedBox(height: 40),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveChanges,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryRed,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                      child: _isSaving
-                          ? const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                SizedBox(width: 10),
-                                Text('Saving...'),
-                              ],
-                            )
-                          : const Text(
-                              'Save Changes',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                    ),
-                  ),
+                  _buildFormCard(),
                 ],
               ),
             ),
           ),
         ),
       ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(
+          18,
+          10,
+          18,
+          16,
+        ),
+        child: SizedBox(
+          height: 54,
+          child: ElevatedButton(
+            onPressed:
+                _isSaving
+                    ? null
+                    : _saveChanges,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryRed,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor:
+                  primaryRed.withValues(
+                alpha: 0.55,
+              ),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+            ),
+            child: _isSaving
+                ? const Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Saving...',
+                        style: TextStyle(
+                          fontWeight:
+                              FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  )
+                : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight:
+                          FontWeight.w800,
+                    ),
+                  ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        InkWell(
-          onTap: () {
-            Navigator.maybePop(context);
-          },
-          borderRadius: BorderRadius.circular(50),
-          child: const Padding(
-            padding: EdgeInsets.all(4),
-            child: Icon(Icons.arrow_back_ios_new, size: 22, color: darkText),
-          ),
-        ),
-
-        const SizedBox(width: 32),
-
-        const Text(
-          'Edit profile',
-          style: TextStyle(
-            fontSize: 23,
-            fontWeight: FontWeight.w800,
-            color: darkText,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileImage() {
+  Widget _buildProfilePhoto() {
     return Column(
       children: [
         Stack(
@@ -348,32 +405,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Container(
               width: 112,
               height: 112,
+              clipBehavior:
+                  Clip.antiAlias,
               decoration: BoxDecoration(
-                color: const Color(0xFFE9E9E9),
+                color:
+                    const Color(0xFFFFEEF1),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE0E0E0), width: 2),
+                border: Border.all(
+                  color:
+                      const Color(0xFFFFD4DB),
+                  width: 3,
+                ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: _buildProfilePhoto(),
+              child: _profilePhotoWidget(),
             ),
 
             Positioned(
-              right: 2,
-              bottom: 5,
+              right: 0,
+              bottom: 4,
               child: InkWell(
-                onTap: _pickProfilePhoto,
-                borderRadius: BorderRadius.circular(50),
+                onTap: _isSaving
+                    ? null
+                    : _pickProfilePhoto,
+                borderRadius:
+                    BorderRadius.circular(50),
                 child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: const BoxDecoration(
+                  width: 38,
+                  height: 38,
+                  decoration:
+                      const BoxDecoration(
                     color: primaryRed,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.photo_camera_outlined,
+                    Icons.camera_alt_outlined,
                     color: Colors.white,
-                    size: 18,
+                    size: 19,
                   ),
                 ),
               ),
@@ -381,30 +448,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ],
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
 
-        InkWell(
-          onTap: _pickProfilePhoto,
-          child: const Text(
-            'Change photo',
+        TextButton.icon(
+          onPressed: _isSaving
+              ? null
+              : _pickProfilePhoto,
+          icon: const Icon(
+            Icons.photo_library_outlined,
+            size: 18,
+          ),
+          label: const Text(
+            'Change profile photo',
             style: TextStyle(
-              fontSize: 14,
-              color: primaryRed,
               fontWeight: FontWeight.w700,
             ),
+          ),
+          style: TextButton.styleFrom(
+            foregroundColor: primaryRed,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildProfilePhoto() {
+  Widget _profilePhotoWidget() {
     if (_selectedImageBytes != null) {
       return Image.memory(
         _selectedImageBytes!,
         fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
       );
     }
 
@@ -412,78 +484,193 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return Image.network(
         _existingPhotoUrl,
         fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return const Icon(Icons.person, size: 65, color: Color(0xFF777777));
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
+          return const Icon(
+            Icons.person_rounded,
+            size: 65,
+            color: primaryRed,
+          );
         },
       );
     }
 
-    return const Icon(Icons.person, size: 65, color: Color(0xFF777777));
+    return const Icon(
+      Icons.person_rounded,
+      size: 65,
+      color: primaryRed,
+    );
   }
 
-  Widget _buildLabel(String text, {Color color = greyText}) {
+  Widget _buildFormCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+            BorderRadius.circular(18),
+        border: Border.all(
+          color: borderColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Personal Information',
+            style: TextStyle(
+              color: darkText,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          _buildLabel(
+            'Full Name',
+          ),
+
+          const SizedBox(height: 7),
+
+          _buildTextField(
+            controller: _nameController,
+            icon: Icons.person_outline_rounded,
+            hintText: 'Enter your full name',
+            keyboardType:
+                TextInputType.name,
+          ),
+
+          const SizedBox(height: 17),
+
+          _buildLabel(
+            'Email Address',
+          ),
+
+          const SizedBox(height: 7),
+
+          _buildTextField(
+            controller: _emailController,
+            icon: Icons.mail_outline_rounded,
+            hintText: 'Enter your email address',
+            keyboardType:
+                TextInputType.emailAddress,
+          ),
+
+          const SizedBox(height: 17),
+
+          _buildLabel(
+            'Phone Number',
+          ),
+
+          const SizedBox(height: 7),
+
+          _buildTextField(
+            controller: _phoneController,
+            icon: Icons.phone_outlined,
+            hintText: '+94 77 123 4567',
+            keyboardType:
+                TextInputType.phone,
+          ),
+
+          const SizedBox(height: 17),
+
+          _buildLabel(
+            'Location',
+          ),
+
+          const SizedBox(height: 7),
+
+          _buildTextField(
+            controller:
+                _locationController,
+            icon:
+                Icons.location_on_outlined,
+            hintText:
+                'Example: Colombo',
+            keyboardType:
+                TextInputType.streetAddress,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLabel(
+    String text,
+  ) {
     return Text(
       text,
-      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color),
+      style: const TextStyle(
+        color: darkText,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
   Widget _buildTextField({
-    required TextEditingController controller,
+    required TextEditingController
+        controller,
     required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
+    required String hintText,
+    required TextInputType
+        keyboardType,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      enabled: !_isSaving,
       style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
         color: darkText,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
       ),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: const Color(0xFF949494), size: 22),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 17,
+        hintText: hintText,
+        hintStyle: const TextStyle(
+          color: Color(0xFFAAAAAA),
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+        prefixIcon: Icon(
+          icon,
+          color: const Color(0xFF929292),
+          size: 21,
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: primaryRed, width: 1.3),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLocationField() {
-    return TextField(
-      controller: _locationController,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: darkText,
-      ),
-      decoration: InputDecoration(
-        suffixIcon: const Icon(Icons.location_on_outlined, color: primaryRed),
         filled: true,
-        fillColor: const Color(0xFFFFF4F5),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 17,
+        fillColor: const Color(0xFFFAFAFA),
+        contentPadding:
+            const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 16,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: primaryRed, width: 1.3),
+          borderRadius:
+              BorderRadius.circular(13),
+          borderSide: const BorderSide(
+            color: borderColor,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: primaryRed, width: 1.5),
+          borderRadius:
+              BorderRadius.circular(13),
+          borderSide: const BorderSide(
+            color: primaryRed,
+            width: 1.4,
+          ),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius:
+              BorderRadius.circular(13),
+          borderSide: const BorderSide(
+            color: borderColor,
+          ),
         ),
       ),
     );

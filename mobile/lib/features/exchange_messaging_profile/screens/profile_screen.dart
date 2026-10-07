@@ -12,168 +12,255 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   static const Color primaryRed = Color(0xFFED1235);
-
   static const Color darkText = Color(0xFF242424);
-
-  static const Color greyText = Color(0xFF929292);
+  static const Color greyText = Color(0xFF7D7D7D);
+  static const Color borderColor = Color(0xFFE7E7E7);
+  static const Color backgroundColor = Color(0xFFF8F8F8);
 
   @override
   Widget build(BuildContext context) {
     final ProfileService profileService = ProfileService();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: darkText,
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: SafeArea(
-        child: Center(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 25),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Profile',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: darkText,
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          stream: profileService.watchProfile(),
-                          builder: (context, snapshot) {
-                            final data = snapshot.data?.data();
-
-                            final String name =
-                                data?['name']?.toString() ?? 'User';
-
-                            final String location =
-                                data?['location']?.toString() ?? 'Sri Lanka';
-
-                            final String photoUrl =
-                                data?['photoUrl']?.toString() ?? '';
-
-                            final bool isVerified = data?['isVerified'] == true;
-
-                            return _buildProfileCard(
-                              name: name,
-                              location: location,
-                              photoUrl: photoUrl,
-                              isVerified: isVerified,
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 28),
-
-                        _buildMenuTile(
-                          icon: Icons.edit_outlined,
-                          iconColor: const Color(0xFFFF2A86),
-                          iconBackground: const Color(0xFFFFEDF5),
-                          title: 'Edit profile',
-                          subtitle: null,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const EditProfileScreen(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        _buildMenuTile(
-                          icon: Icons.settings_outlined,
-                          iconColor: const Color(0xFF1687D9),
-                          iconBackground: const Color(0xFFE8F5FF),
-                          title: 'Settings',
-                          subtitle: 'Notifications, privacy, payment',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SettingsScreen(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        _buildMenuTile(
-                          icon: Icons.receipt_long_outlined,
-                          iconColor: const Color(0xFF16B95B),
-                          iconBackground: const Color(0xFFE8FAEF),
-                          title: 'Transaction history',
-                          subtitle: 'Payments and refunds',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const TransactionHistoryScreen(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        _buildMenuTile(
-                          icon: Icons.help_outline_rounded,
-                          iconColor: const Color(0xFFFF6A00),
-                          iconBackground: const Color(0xFFFFF0E3),
-                          title: 'Help & support',
-                          subtitle: 'FAQs, report a problem',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const HelpSupportScreen(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 22),
-
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: OutlinedButton(
-                            onPressed: () {
-                              _showLogoutDialog(context);
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryRed,
-                              backgroundColor: const Color(0xFFFFF4F5),
-                              side: const BorderSide(
-                                color: Color(0xFFFFD4DA),
-                                width: 1.2,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                            ),
-                            child: const Text(
-                              'Log out',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+            constraints: const BoxConstraints(
+              maxWidth: 500,
+            ),
+            child: StreamBuilder<
+                DocumentSnapshot<Map<String, dynamic>>>(
+              stream: profileService.watchProfile(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                        ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: primaryRed,
                     ),
-                  ),
-                ),
+                  );
+                }
 
-                _buildBottomNavigation(),
-              ],
+                final data = snapshot.data?.data() ?? {};
+
+                final String name =
+                    data['name']?.toString().trim() ?? '';
+
+                final String email =
+                    data['email']?.toString().trim() ??
+                        FirebaseAuth.instance.currentUser?.email ??
+                        '';
+
+                final String phone =
+                    data['phone']?.toString().trim() ?? '';
+
+                final String location =
+                    data['location']?.toString().trim() ?? '';
+
+                final String photoUrl =
+                    data['photoUrl']?.toString().trim() ?? '';
+
+                final bool isVerified =
+                    data['isVerified'] == true;
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                    18,
+                    20,
+                    18,
+                    32,
+                  ),
+                  child: Column(
+                    children: [
+                      _buildProfileHeader(
+                        name: name.isEmpty
+                            ? 'Rent Lanka User'
+                            : name,
+                        email: email,
+                        location: location,
+                        photoUrl: photoUrl,
+                        isVerified: isVerified,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      _buildContactCard(
+                        email: email,
+                        phone: phone,
+                        location: location,
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      _buildSectionTitle(
+                        'Account',
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      _buildMenuContainer(
+                        children: [
+                          _buildMenuTile(
+                            icon: Icons.person_outline_rounded,
+                            iconColor: primaryRed,
+                            iconBackground:
+                                const Color(0xFFFFEEF1),
+                            title: 'Edit Profile',
+                            subtitle:
+                                'Update your personal information',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const EditProfileScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          _divider(),
+                          _buildMenuTile(
+                            icon: Icons.settings_outlined,
+                            iconColor:
+                                const Color(0xFF3478C7),
+                            iconBackground:
+                                const Color(0xFFEDF4FF),
+                            title: 'Settings',
+                            subtitle:
+                                'Privacy, notifications and preferences',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const SettingsScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      _buildSectionTitle(
+                        'Activity & Support',
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      _buildMenuContainer(
+                        children: [
+                          _buildMenuTile(
+                            icon: Icons.receipt_long_outlined,
+                            iconColor:
+                                const Color(0xFF24945E),
+                            iconBackground:
+                                const Color(0xFFEAF8F1),
+                            title: 'Transaction History',
+                            subtitle:
+                                'Payments, refunds and transactions',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const TransactionHistoryScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          _divider(),
+                          _buildMenuTile(
+                            icon: Icons.help_outline_rounded,
+                            iconColor:
+                                const Color(0xFFE28B1A),
+                            iconBackground:
+                                const Color(0xFFFFF4E5),
+                            title: 'Help & Support',
+                            subtitle:
+                                'FAQs and report a problem',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const HelpSupportScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 26),
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            _showLogoutDialog(
+                              context,
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryRed,
+                            backgroundColor:
+                                const Color(0xFFFFF4F5),
+                            side: const BorderSide(
+                              color: Color(0xFFFFCCD4),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(14),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.logout_rounded,
+                            size: 20,
+                          ),
+                          label: const Text(
+                            'Log Out',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      const Text(
+                        'Rent Lanka',
+                        style: TextStyle(
+                          color: Color(0xFFAAAAAA),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -181,121 +268,274 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileCard({
+  Widget _buildProfileHeader({
     required String name,
+    required String email,
     required String location,
     required String photoUrl,
     required bool isVerified,
   }) {
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: borderColor,
+        ),
+      ),
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 94,
+                height: 94,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEEF1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFFFD7DD),
+                    width: 3,
+                  ),
+                ),
+                child: photoUrl.isEmpty
+                    ? const Icon(
+                        Icons.person_rounded,
+                        size: 56,
+                        color: primaryRed,
+                      )
+                    : Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (
+                          context,
+                          error,
+                          stackTrace,
+                        ) {
+                          return const Icon(
+                            Icons.person_rounded,
+                            size: 56,
+                            color: primaryRed,
+                          );
+                        },
+                      ),
+              ),
+              if (isVerified)
+                Positioned(
+                  right: 1,
+                  bottom: 3,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E9B50),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 3,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: darkText,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          if (email.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              email,
+              style: const TextStyle(
+                color: greyText,
+                fontSize: 13,
+              ),
+            ),
+          ],
+
+          if (location.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 7,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F3F4),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    color: greyText,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    location,
+                    style: const TextStyle(
+                      color: darkText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactCard({
+    required String email,
+    required String phone,
+    required String location,
+  }) {
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: primaryRed,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: borderColor,
+        ),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: photoUrl.isEmpty
-                ? const Icon(Icons.person, size: 50, color: Color(0xFF666666))
-                : Image.network(
-                    photoUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) {
-                        return child;
-                      }
-
-                      return const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: primaryRed,
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.person,
-                        size: 50,
-                        color: Color(0xFF666666),
-                      );
-                    },
-                  ),
+          _buildInfoRow(
+            icon: Icons.mail_outline_rounded,
+            title: 'Email',
+            value: email.isEmpty
+                ? 'Not added'
+                : email,
           ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isVerified) ...[
-                        const Icon(
-                          Icons.check_circle,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-
-                      Flexible(
-                        child: Text(
-                          isVerified ? 'Verified • $location' : location,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 15),
+          _buildInfoRow(
+            icon: Icons.phone_outlined,
+            title: 'Phone',
+            value: phone.isEmpty
+                ? 'Not added'
+                : phone,
+          ),
+          const SizedBox(height: 15),
+          _buildInfoRow(
+            icon: Icons.location_on_outlined,
+            title: 'Location',
+            value: location.isEmpty
+                ? 'Not added'
+                : location,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFEEF1),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(
+            icon,
+            color: primaryRed,
+            size: 20,
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: greyText,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: darkText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(
+    String text,
+  ) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: darkText,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuContainer({
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: borderColor,
+        ),
+      ),
+      child: Column(
+        children: children,
       ),
     );
   }
@@ -305,151 +545,131 @@ class ProfileScreen extends StatelessWidget {
     required Color iconColor,
     required Color iconBackground,
     required String title,
-    required String? subtitle,
+    required String subtitle,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: iconBackground,
-                borderRadius: BorderRadius.circular(13),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 23,
+                ),
               ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
 
-            const SizedBox(width: 15),
+              const SizedBox(width: 13),
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: darkText,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: darkText,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: const TextStyle(fontSize: 12, color: greyText),
+                      style: const TextStyle(
+                        color: greyText,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
 
-            const Icon(Icons.chevron_right, color: Color(0xFFC5C5C5), size: 27),
-          ],
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFFB0B0B0),
+                size: 25,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBottomNavigation() {
-    return Container(
-      height: 78,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE8E8E8))),
+  Widget _divider() {
+    return const Padding(
+      padding: EdgeInsets.only(
+        left: 74,
       ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _ProfileNavigationItem(icon: Icons.home_outlined, label: 'Home'),
-          _ProfileNavigationItem(icon: Icons.search, label: 'Search'),
-          _ProfileNavigationItem(
-            icon: Icons.file_download_outlined,
-            label: 'Bookings',
-          ),
-          _ProfileNavigationItem(
-            icon: Icons.chat_bubble_outline,
-            label: 'Messages',
-          ),
-          _ProfileNavigationItem(
-            icon: Icons.person_outline,
-            label: 'Profile',
-            active: true,
-          ),
-        ],
+      child: Divider(
+        height: 1,
+        color: borderColor,
       ),
     );
   }
 
-  Future<void> _showLogoutDialog(BuildContext context) async {
-    await showDialog<void>(
+  Future<void> _showLogoutDialog(
+    BuildContext context,
+  ) async {
+    final bool? confirmed =
+        await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
           title: const Text(
             'Log out?',
-            style: TextStyle(fontWeight: FontWeight.w700, color: darkText),
+            style: TextStyle(
+              color: darkText,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          content: const Text('Are you sure you want to log out?'),
+          content: const Text(
+            'Are you sure you want to log out of Rent Lanka?',
+          ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cancel', style: TextStyle(color: darkText)),
-            ),
-
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(dialogContext);
-
-                try {
-                  await FirebaseAuth.instance.signOut();
-
-                  if (!context.mounted) {
-                    return;
-                  }
-
-                  // Return to the first route.
-                  // member3_preview.dart authStateChanges()
-                  // will then show the Login screen.
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                } on FirebaseAuthException catch (error) {
-                  if (!context.mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(error.message ?? 'Unable to log out.'),
-                    ),
-                  );
-                } catch (_) {
-                  if (!context.mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Unable to log out. Please try again.'),
-                    ),
-                  );
-                }
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
               },
               child: const Text(
-                'Log out',
+                'Cancel',
+                style: TextStyle(
+                  color: darkText,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text(
+                'Log Out',
                 style: TextStyle(
                   color: primaryRed,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -457,47 +677,34 @@ class ProfileScreen extends StatelessWidget {
         );
       },
     );
-  }
-}
 
-class _ProfileNavigationItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
+    if (confirmed != true) {
+      return;
+    }
 
-  const _ProfileNavigationItem({
-    required this.icon,
-    required this.label,
-    this.active = false,
-  });
+    try {
+      await FirebaseAuth.instance.signOut();
 
-  @override
-  Widget build(BuildContext context) {
-    const Color primaryRed = Color(0xFFED1235);
+      if (!context.mounted) {
+        return;
+      }
 
-    return SizedBox(
-      width: 65,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 24,
-            color: active ? primaryRed : const Color(0xFF929292),
+      Navigator.of(context).popUntil(
+        (route) => route.isFirst,
+      );
+    } on FirebaseAuthException catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.message ??
+                'Unable to log out.',
           ),
-
-          const SizedBox(height: 4),
-
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-              color: active ? primaryRed : const Color(0xFF929292),
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+    }
   }
 }

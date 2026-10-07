@@ -8,7 +8,10 @@ import 'chat_screen.dart';
 class ExchangeStatusScreen extends StatefulWidget {
   final String exchangeRequestId;
 
-  const ExchangeStatusScreen({super.key, required this.exchangeRequestId});
+  const ExchangeStatusScreen({
+    super.key,
+    required this.exchangeRequestId,
+  });
 
   @override
   State<ExchangeStatusScreen> createState() => _ExchangeStatusScreenState();
@@ -16,9 +19,12 @@ class ExchangeStatusScreen extends StatefulWidget {
 
 class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
   static const Color primaryRed = Color(0xFFED1235);
+  static const Color darkText = Color(0xFF242424);
+  static const Color greyText = Color(0xFF7A7A7A);
+  static const Color borderColor = Color(0xFFE6E6E6);
+  static const Color backgroundColor = Color(0xFFF8F8F8);
 
   final ExchangeService _exchangeService = ExchangeService();
-
   final ChatService _chatService = ChatService();
 
   bool _isOpeningChat = false;
@@ -26,9 +32,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
 
   Future<void> _messageProvider(String providerId) async {
     if (providerId.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Provider information is missing.')),
-      );
+      _showMessage('Provider information is missing.');
       return;
     }
 
@@ -37,18 +41,16 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     });
 
     try {
-      final String providerName = await _chatService.getUserDisplayName(
+      final providerName = await _chatService.getUserDisplayName(
         providerId,
       );
 
-      final String chatId = await _chatService.ensureChat(
+      final chatId = await _chatService.ensureChat(
         otherUserId: providerId,
         otherUserName: providerName,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       await Navigator.push(
         context,
@@ -61,20 +63,17 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
         ),
       );
     } on FirebaseException catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Unable to open chat.')),
+      _showMessage(
+        error.message ?? 'Unable to open chat.',
       );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Unable to open chat: $error')));
+      _showMessage(
+        error.toString().replaceFirst('Exception: ', ''),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -84,173 +83,264 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     }
   }
 
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: darkText,
+          ),
+        ),
+        titleSpacing: 0,
+        title: const Text(
+          'Exchange Status',
+          style: TextStyle(
+            color: darkText,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: SafeArea(
-        child: Center(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child:
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: _exchangeService.watchExchangeRequest(
                 widget.exchangeRequestId,
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return _buildErrorState(context);
+                  return _buildErrorState();
                 }
 
-                if (snapshot.connectionState == ConnectionState.waiting &&
+                if (snapshot.connectionState ==
+                        ConnectionState.waiting &&
                     !snapshot.hasData) {
                   return const Center(
-                    child: CircularProgressIndicator(color: primaryRed),
+                    child: CircularProgressIndicator(
+                      color: primaryRed,
+                    ),
                   );
                 }
 
                 if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return _buildNotFoundState(context);
+                  return _buildNotFoundState();
                 }
 
                 final data = snapshot.data!.data();
 
                 if (data == null) {
-                  return _buildNotFoundState(context);
+                  return _buildNotFoundState();
                 }
 
                 final String requestedEquipment =
                     data['requestedEquipmentName']?.toString() ??
-                    'Requested equipment';
+                        'Requested equipment';
 
                 final String offeredEquipment =
                     data['offeredEquipmentName']?.toString() ??
-                    'Offered equipment';
+                        'Offered equipment';
 
-                final String requestedProviderId =
+                final String providerId =
                     data['requestedProviderId']?.toString() ?? '';
 
+                final String message =
+                    data['message']?.toString().trim() ?? '';
+
                 final String status =
-                    data['status']?.toString().toLowerCase() ?? 'pending';
+                    data['status']?.toString().toLowerCase() ??
+                        'pending';
 
                 final Timestamp? createdTimestamp =
                     data['createdAt'] is Timestamp
-                    ? data['createdAt'] as Timestamp
-                    : null;
+                        ? data['createdAt'] as Timestamp
+                        : null;
 
-                final DateTime? createdAt = createdTimestamp?.toDate();
+                final DateTime? createdAt =
+                    createdTimestamp?.toDate();
+
+                final bool canMessage =
+                    status != 'cancelled' &&
+                    status != 'rejected' &&
+                    providerId.isNotEmpty;
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+                  padding: const EdgeInsets.fromLTRB(
+                    18,
+                    20,
+                    18,
+                    32,
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(context),
+                      _buildStatusBanner(status),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
-                      _buildExchangeCard(
-                        requestedEquipment: requestedEquipment,
+                      const Text(
+                        'Exchange Summary',
+                        style: TextStyle(
+                          color: darkText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      _buildExchangeSummary(
+                        requestedEquipment:
+                            requestedEquipment,
                         offeredEquipment: offeredEquipment,
-                        status: status,
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      const Text(
+                        'Request Progress',
+                        style: TextStyle(
+                          color: darkText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      _buildProgress(status),
+
+                      const SizedBox(height: 24),
+
+                      const Text(
+                        'Request Details',
+                        style: TextStyle(
+                          color: darkText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      _buildDetailsCard(
+                        createdAt: createdAt,
+                        message: message,
                       ),
 
                       const SizedBox(height: 26),
 
-                      Text(
-                        'Requested: ${_formatDate(createdAt)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF969696),
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-
-                      const SizedBox(height: 36),
-
                       SizedBox(
                         width: double.infinity,
-                        height: 50,
+                        height: 54,
                         child: ElevatedButton.icon(
                           onPressed:
-                              _isOpeningChat || requestedProviderId.isEmpty
-                              ? null
-                              : () {
-                                  _messageProvider(requestedProviderId);
-                                },
+                              _isOpeningChat || !canMessage
+                                  ? null
+                                  : () =>
+                                      _messageProvider(providerId),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryRed,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: const Color(0xFFFFA7B5),
-                            disabledForegroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                const Color(0xFFE4E4E4),
+                            disabledForegroundColor:
+                                const Color(0xFF999999),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius:
+                                  BorderRadius.circular(14),
                             ),
                           ),
                           icon: _isOpeningChat
                               ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
+                                  width: 19,
+                                  height: 19,
+                                  child:
+                                      CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Icon(Icons.chat_bubble_outline, size: 20),
+                              : const Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  size: 20,
+                                ),
                           label: Text(
                             _isOpeningChat
-                                ? 'Opening chat...'
-                                : 'Message provider',
+                                ? 'Opening Chat...'
+                                : status == 'rejected' ||
+                                        status == 'cancelled'
+                                    ? 'Messaging Unavailable'
+                                    : 'Message Provider',
                             style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
                       ),
 
-                      const SizedBox(height: 16),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: OutlinedButton(
-                          onPressed: status == 'pending' && !_isCancelling
-                              ? _showCancelDialog
-                              : null,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF242424),
-                            disabledForegroundColor: const Color(0xFFAAAAAA),
-                            side: BorderSide(
-                              color: status == 'pending'
-                                  ? const Color(0xFFE0E0E0)
-                                  : const Color(0xFFEAEAEA),
-                              width: 1.4,
+                      if (status == 'pending') ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: OutlinedButton(
+                            onPressed: _isCancelling
+                                ? null
+                                : _showCancelDialog,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: darkText,
+                              side: const BorderSide(
+                                color: borderColor,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(14),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            child: _isCancelling
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: primaryRed,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Cancel Request',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight:
+                                          FontWeight.w700,
+                                    ),
+                                  ),
                           ),
-                          child: _isCancelling
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: primaryRed,
-                                  ),
-                                )
-                              : Text(
-                                  status == 'cancelled'
-                                      ? 'Request cancelled'
-                                      : 'Cancel request',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 );
@@ -262,77 +352,299 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: [
-        InkWell(
-          onTap: () {
-            Navigator.maybePop(context);
-          },
-          borderRadius: BorderRadius.circular(50),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+  Widget _buildStatusBanner(String status) {
+    final Color color = _statusTextColor(status);
+    final Color background = _statusBackgroundColor(status);
+    final IconData icon = _statusIcon(status);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.85),
+              shape: BoxShape.circle,
+            ),
             child: Icon(
-              Icons.arrow_back_ios_new,
-              size: 22,
-              color: Color(0xFF242424),
+              icon,
+              color: color,
+              size: 26,
             ),
           ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _statusTitle(status),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _statusDescription(status),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExchangeSummary({
+    required String requestedEquipment,
+    required String offeredEquipment,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        children: [
+          _buildEquipmentRow(
+            icon: Icons.sports_cricket_rounded,
+            label: 'You want',
+            equipmentName: requestedEquipment,
+            iconBackground: const Color(0xFFFFEEF1),
+            iconColor: primaryRed,
+          ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Divider(color: borderColor),
+                ),
+                Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 12),
+                  child: Icon(
+                    Icons.swap_vert_rounded,
+                    color: primaryRed,
+                    size: 25,
+                  ),
+                ),
+                Expanded(
+                  child: Divider(color: borderColor),
+                ),
+              ],
+            ),
+          ),
+
+          _buildEquipmentRow(
+            icon: Icons.inventory_2_outlined,
+            label: 'You offer',
+            equipmentName: offeredEquipment,
+            iconBackground: const Color(0xFFF0F7FF),
+            iconColor: const Color(0xFF3478C7),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEquipmentRow({
+    required IconData icon,
+    required String label,
+    required String equipmentName,
+    required Color iconBackground,
+    required Color iconColor,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: iconBackground,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(
+            icon,
+            color: iconColor,
+            size: 24,
+          ),
         ),
-
-        const SizedBox(width: 14),
-
-        const Text(
-          'Exchange status',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF242424),
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: greyText,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                equipmentName,
+                style: const TextStyle(
+                  color: darkText,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildExchangeCard({
-    required String requestedEquipment,
-    required String offeredEquipment,
-    required String status,
-  }) {
+  Widget _buildProgress(String status) {
+    final bool submitted = true;
+
+    final bool reviewed =
+        status != 'pending' && status != 'cancelled';
+
+    final bool decided =
+        status == 'accepted' ||
+        status == 'rejected' ||
+        status == 'completed';
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE0E0E0), width: 1.4),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '$requestedEquipment ↔ $offeredEquipment',
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF242424),
+          _buildProgressItem(
+            title: 'Request submitted',
+            subtitle:
+                'Your exchange offer was sent.',
+            isComplete: submitted,
+            showLine: true,
+          ),
+          _buildProgressItem(
+            title: 'Provider review',
+            subtitle: status == 'pending'
+                ? 'Waiting for the provider to review your offer.'
+                : 'The provider reviewed your offer.',
+            isComplete: reviewed,
+            showLine: true,
+          ),
+          _buildProgressItem(
+            title: 'Decision',
+            subtitle: _decisionProgressText(status),
+            isComplete: decided,
+            showLine: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressItem({
+    required String title,
+    required String subtitle,
+    required bool isComplete,
+    required bool showLine,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Column(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: isComplete
+                        ? primaryRed
+                        : const Color(0xFFE8E8E8),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isComplete
+                        ? Icons.check_rounded
+                        : Icons.circle,
+                    size: isComplete ? 15 : 7,
+                    color: isComplete
+                        ? Colors.white
+                        : const Color(0xFFAAAAAA),
+                  ),
+                ),
+                if (showLine)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin:
+                          const EdgeInsets.symmetric(
+                        vertical: 4,
+                      ),
+                      color: isComplete
+                          ? primaryRed
+                              .withValues(alpha: 0.25)
+                          : const Color(0xFFE8E8E8),
+                    ),
+                  ),
+              ],
             ),
           ),
-
-          const SizedBox(height: 15),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-            decoration: BoxDecoration(
-              color: _statusBackgroundColor(status),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              _statusText(status),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: _statusTextColor(status),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding:
+                  const EdgeInsets.only(bottom: 22),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isComplete
+                          ? darkText
+                          : const Color(0xFF999999),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: greyText,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -341,29 +653,136 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     );
   }
 
+  Widget _buildDetailsCard({
+    required DateTime? createdAt,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          _buildDetailRow(
+            Icons.calendar_today_outlined,
+            'Requested on',
+            _formatDate(createdAt),
+          ),
+          if (message.isNotEmpty) ...[
+            const Padding(
+              padding:
+                  EdgeInsets.symmetric(vertical: 14),
+              child: Divider(
+                height: 1,
+                color: borderColor,
+              ),
+            ),
+            const Text(
+              'Your message',
+              style: TextStyle(
+                color: greyText,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              style: const TextStyle(
+                color: darkText,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(
+    IconData icon,
+    String label,
+    String value,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: primaryRed,
+          size: 20,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: greyText,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: darkText,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _showCancelDialog() async {
-    final bool? shouldCancel = await showDialog<bool>(
+    final bool? shouldCancel =
+        await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Cancel exchange request?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            'Cancel exchange request?',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           content: const Text(
-            'Are you sure you want to cancel this exchange request?',
+            'The provider will no longer be able to accept this exchange request.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('No'),
+              onPressed: () =>
+                  Navigator.pop(
+                dialogContext,
+                false,
+              ),
+              child: const Text(
+                'Keep Request',
+                style: TextStyle(
+                  color: darkText,
+                ),
+              ),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
+              onPressed: () =>
+                  Navigator.pop(
+                dialogContext,
+                true,
+              ),
               child: const Text(
-                'Yes, cancel',
-                style: TextStyle(color: primaryRed),
+                'Cancel Request',
+                style: TextStyle(
+                  color: primaryRed,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -371,39 +790,40 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
       },
     );
 
-    if (shouldCancel != true) {
-      return;
-    }
+    if (shouldCancel != true) return;
 
     setState(() {
       _isCancelling = true;
     });
 
     try {
-      await _exchangeService.cancelExchangeRequest(widget.exchangeRequestId);
+      await _exchangeService.cancelExchangeRequest(
+        widget.exchangeRequestId,
+      );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exchange request cancelled.')),
+        const SnackBar(
+          content:
+              Text('Exchange request cancelled.'),
+        ),
       );
     } on FirebaseException catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Unable to cancel request.')),
+      _showMessage(
+        error.message ??
+            'Unable to cancel request.',
       );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to cancel request: $error')),
+      _showMessage(
+        error.toString().replaceFirst(
+              'Exception: ',
+              '',
+            ),
       );
     } finally {
       if (mounted) {
@@ -414,115 +834,158 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     }
   }
 
-  Widget _buildErrorState(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 50, color: primaryRed),
-
-          const SizedBox(height: 15),
-
-          const Text(
-            'Unable to load exchange request.',
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 20),
-
-          OutlinedButton(
-            onPressed: () {
-              Navigator.maybePop(context);
-            },
-            child: const Text('Go back'),
-          ),
-        ],
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 54,
+              color: primaryRed,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Unable to load exchange request.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: darkText,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.maybePop(context),
+              child: const Text('Go Back'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildNotFoundState(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.swap_horiz, size: 55, color: Color(0xFF999999)),
-
-          const SizedBox(height: 15),
-
-          const Text(
-            'Exchange request not found.',
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 20),
-
-          OutlinedButton(
-            onPressed: () {
-              Navigator.maybePop(context);
-            },
-            child: const Text('Go back'),
-          ),
-        ],
+  Widget _buildNotFoundState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.swap_horiz_rounded,
+              size: 58,
+              color: Color(0xFF999999),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Exchange request not found.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: darkText,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.maybePop(context),
+              child: const Text('Go Back'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  String _statusText(String status) {
-    switch (status.toLowerCase()) {
+  String _statusTitle(String status) {
+    switch (status) {
       case 'accepted':
-        return 'Accepted';
-
+        return 'Exchange Accepted';
       case 'rejected':
-        return 'Rejected';
-
+        return 'Exchange Declined';
       case 'cancelled':
-        return 'Cancelled';
-
+        return 'Request Cancelled';
       case 'completed':
-        return 'Completed';
-
-      case 'pending':
+        return 'Exchange Completed';
       default:
-        return 'Pending provider response';
+        return 'Waiting for Response';
+    }
+  }
+
+  String _statusDescription(String status) {
+    switch (status) {
+      case 'accepted':
+        return 'The provider accepted your offer. You can now contact them to arrange the exchange.';
+      case 'rejected':
+        return 'The provider declined this exchange offer.';
+      case 'cancelled':
+        return 'You cancelled this exchange request.';
+      case 'completed':
+        return 'This equipment exchange has been completed.';
+      default:
+        return 'Your request has been sent. The provider has not responded yet.';
+    }
+  }
+
+  String _decisionProgressText(String status) {
+    switch (status) {
+      case 'accepted':
+        return 'Your exchange offer was accepted.';
+      case 'rejected':
+        return 'Your exchange offer was declined.';
+      case 'completed':
+        return 'The exchange was completed.';
+      case 'cancelled':
+        return 'The request was cancelled.';
+      default:
+        return 'Waiting for a decision.';
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'accepted':
+      case 'completed':
+        return Icons.check_circle_outline_rounded;
+      case 'rejected':
+        return Icons.cancel_outlined;
+      case 'cancelled':
+        return Icons.block_rounded;
+      default:
+        return Icons.schedule_rounded;
     }
   }
 
   Color _statusBackgroundColor(String status) {
-    switch (status.toLowerCase()) {
+    switch (status) {
       case 'accepted':
       case 'completed':
-        return const Color(0xFFE7F7EC);
-
+        return const Color(0xFFE9F8EE);
       case 'rejected':
-        return const Color(0xFFFFE7E7);
-
+        return const Color(0xFFFFEAEA);
       case 'cancelled':
-        return const Color(0xFFECECEC);
-
-      case 'pending':
+        return const Color(0xFFF0F0F0);
       default:
-        return const Color(0xFFFFF6D9);
+        return const Color(0xFFFFF6DD);
     }
   }
 
   Color _statusTextColor(String status) {
-    switch (status.toLowerCase()) {
+    switch (status) {
       case 'accepted':
       case 'completed':
-        return const Color(0xFF228B45);
-
+        return const Color(0xFF218548);
       case 'rejected':
-        return const Color(0xFFD93025);
-
+        return const Color(0xFFC83939);
       case 'cancelled':
         return const Color(0xFF666666);
-
-      case 'pending':
       default:
-        return const Color(0xFFFFB000);
+        return const Color(0xFFB97900);
     }
   }
 
@@ -531,7 +994,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
       return 'Just now';
     }
 
-    const List<String> months = [
+    const months = [
       'Jan',
       'Feb',
       'Mar',

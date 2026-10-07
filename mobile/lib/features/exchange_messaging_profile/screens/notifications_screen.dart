@@ -1,96 +1,161 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../services/chat_service.dart';
 import '../services/notification_service.dart';
+import 'chat_screen.dart';
+import 'rate_review_screen.dart';
+import 'incoming_exchange_request_screen.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
+  @override
+  State<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState
+    extends State<NotificationsScreen> {
   static const Color primaryRed = Color(0xFFED1235);
-
   static const Color darkText = Color(0xFF242424);
+  static const Color greyText = Color(0xFF7D7D7D);
+  static const Color borderColor = Color(0xFFE7E7E7);
+  static const Color backgroundColor = Color(0xFFF8F8F8);
 
-  static const Color greyText = Color(0xFF929292);
+  final NotificationService _notificationService =
+      NotificationService();
+
+  final ChatService _chatService = ChatService();
+
+  bool _isOpeningNotification = false;
 
   @override
   Widget build(BuildContext context) {
-    final NotificationService service = NotificationService();
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: darkText,
+          ),
+        ),
+        titleSpacing: 0,
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            color: darkText,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: SafeArea(
-        child: Center(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              children: [
-                _buildHeader(context),
+            constraints: const BoxConstraints(
+              maxWidth: 500,
+            ),
+            child: StreamBuilder<
+                QuerySnapshot<Map<String, dynamic>>>(
+              stream:
+                  _notificationService.watchMyNotifications(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return _buildErrorState();
+                }
 
-                const SizedBox(height: 14),
+                if (snapshot.connectionState ==
+                        ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: primaryRed,
+                    ),
+                  );
+                }
 
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: service.watchMyNotifications(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              'Unable to load notifications.\n${snapshot.error}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: greyText),
-                            ),
-                          ),
-                        );
-                      }
+                final notifications = [
+                  ...?snapshot.data?.docs,
+                ];
 
-                      if (snapshot.connectionState == ConnectionState.waiting &&
-                          !snapshot.hasData) {
-                        return const Center(
-                          child: CircularProgressIndicator(color: primaryRed),
-                        );
-                      }
+                notifications.sort(
+                  (first, second) {
+                    final DateTime firstDate =
+                        _getDate(
+                      first.data()['createdAt'],
+                    );
 
-                      final notifications = [...?snapshot.data?.docs];
+                    final DateTime secondDate =
+                        _getDate(
+                      second.data()['createdAt'],
+                    );
 
-                      notifications.sort((first, second) {
-                        final DateTime firstDate = _getDate(
-                          first.data()['createdAt'],
-                        );
+                    return secondDate.compareTo(
+                      firstDate,
+                    );
+                  },
+                );
 
-                        final DateTime secondDate = _getDate(
-                          second.data()['createdAt'],
-                        );
+                if (notifications.isEmpty) {
+                  return _buildEmptyState();
+                }
 
-                        return secondDate.compareTo(firstDate);
-                      });
+                final int unreadCount =
+                    notifications.where(
+                  (document) {
+                    return document.data()['isRead'] !=
+                        true;
+                  },
+                ).length;
 
-                      if (notifications.isEmpty) {
-                        return _buildEmptyState();
-                      }
-
-                      return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                        itemCount: notifications.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final document = notifications[index];
-
-                          final data = document.data();
+                return Column(
+                  children: [
+                    _buildSummaryHeader(
+                      unreadCount: unreadCount,
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding:
+                            const EdgeInsets.fromLTRB(
+                          18,
+                          16,
+                          18,
+                          28,
+                        ),
+                        itemCount:
+                            notifications.length,
+                        separatorBuilder:
+                            (_, __) =>
+                                const SizedBox(
+                          height: 11,
+                        ),
+                        itemBuilder:
+                            (context, index) {
+                          final document =
+                              notifications[index];
 
                           return _buildNotificationCard(
-                            context: context,
-                            service: service,
-                            notificationId: document.id,
-                            data: data,
+                            notificationId:
+                                document.id,
+                            data:
+                                document.data(),
                           );
                         },
-                      );
-                    },
-                  ),
-                ),
-              ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -98,162 +163,318 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+  Widget _buildSummaryHeader({
+    required int unreadCount,
+  }) {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(
+        18,
+        10,
+        18,
+        18,
+      ),
       child: Row(
         children: [
-          InkWell(
-            onTap: () {
-              Navigator.maybePop(context);
-            },
-            borderRadius: BorderRadius.circular(50),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.arrow_back_ios_new, size: 23, color: darkText),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFEEF1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.notifications_none_rounded,
+              color: primaryRed,
+              size: 23,
             ),
           ),
-
-          const SizedBox(width: 18),
-
-          const Text(
-            'Notifications',
-            style: TextStyle(
-              fontSize: 27,
-              fontWeight: FontWeight.w800,
-              color: darkText,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Activity updates',
+                  style: TextStyle(
+                    color: darkText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  unreadCount == 0
+                      ? 'You are all caught up'
+                      : '$unreadCount unread ${unreadCount == 1 ? 'notification' : 'notifications'}',
+                  style: const TextStyle(
+                    color: greyText,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
+          if (unreadCount > 0)
+            Container(
+              constraints:
+                  const BoxConstraints(
+                minWidth: 28,
+                minHeight: 28,
+              ),
+              alignment: Alignment.center,
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 8,
+              ),
+              decoration: const BoxDecoration(
+                color: primaryRed,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                unreadCount > 99
+                    ? '99+'
+                    : '$unreadCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildNotificationCard({
-    required BuildContext context,
-    required NotificationService service,
     required String notificationId,
     required Map<String, dynamic> data,
   }) {
-    final String title = data['title']?.toString() ?? 'Notification';
+    final String title =
+        data['title']?.toString().trim() ??
+            'Notification';
 
-    final String message = data['message']?.toString() ?? '';
+    final String message =
+        data['message']?.toString().trim() ?? '';
 
-    final String type = data['type']?.toString().toLowerCase() ?? 'general';
+    final String type =
+        data['type']
+                ?.toString()
+                .toLowerCase()
+                .trim() ??
+            'general';
 
-    final bool isRead = data['isRead'] == true;
+    final String referenceId =
+        data['referenceId']
+                ?.toString()
+                .trim() ??
+            '';
 
-    final DateTime createdAt = _getDate(data['createdAt']);
+    final bool isRead =
+        data['isRead'] == true;
+
+    final DateTime createdAt =
+        _getDate(
+      data['createdAt'],
+    );
 
     return Dismissible(
       key: ValueKey(notificationId),
-      direction: DismissDirection.endToStart,
+      direction:
+          DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
+        padding:
+            const EdgeInsets.only(
+          right: 22,
+        ),
         decoration: BoxDecoration(
           color: primaryRed,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius:
+              BorderRadius.circular(18),
         ),
-        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+        child: const Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+            SizedBox(height: 3),
+            Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
       onDismissed: (_) async {
         try {
-          await service.deleteNotification(notificationId);
+          await _notificationService
+              .deleteNotification(
+            notificationId,
+          );
         } catch (_) {}
       },
       child: Material(
-        color: isRead ? Colors.white : const Color(0xFFFFF1F3),
-        borderRadius: BorderRadius.circular(15),
+        color: isRead
+            ? Colors.white
+            : const Color(0xFFFFF4F6),
+        borderRadius:
+            BorderRadius.circular(18),
         child: InkWell(
-          borderRadius: BorderRadius.circular(15),
-          onTap: () async {
-            if (!isRead) {
-              try {
-                await service.markAsRead(notificationId);
-              } catch (_) {}
-            }
-          },
+          borderRadius:
+              BorderRadius.circular(18),
+          onTap: _isOpeningNotification
+              ? null
+              : () => _handleNotificationTap(
+                    notificationId:
+                        notificationId,
+                    data: data,
+                  ),
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding:
+                const EdgeInsets.all(15),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
+              borderRadius:
+                  BorderRadius.circular(18),
               border: Border.all(
                 color: isRead
-                    ? const Color(0xFFE8E8E8)
-                    : const Color(0xFFFFCBD3),
+                    ? borderColor
+                    : const Color(
+                        0xFFFFCCD5,
+                      ),
               ),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _iconBackground(type),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(
-                    _iconForType(type),
-                    color: _iconColor(type),
-                    size: 24,
-                  ),
+                _buildTypeIcon(
+                  type: type,
                 ),
-
                 const SizedBox(width: 13),
-
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Row(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Text(
                               title,
                               style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: isRead
-                                    ? FontWeight.w600
-                                    : FontWeight.w800,
                                 color: darkText,
+                                fontSize: 15,
+                                fontWeight:
+                                    isRead
+                                        ? FontWeight
+                                            .w700
+                                        : FontWeight
+                                            .w800,
                               ),
                             ),
                           ),
-
+                          const SizedBox(
+                            width: 8,
+                          ),
                           if (!isRead)
                             Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: primaryRed,
-                                shape: BoxShape.circle,
+                              width: 9,
+                              height: 9,
+                              margin:
+                                  const EdgeInsets.only(
+                                top: 5,
+                              ),
+                              decoration:
+                                  const BoxDecoration(
+                                color:
+                                    primaryRed,
+                                shape:
+                                    BoxShape.circle,
                               ),
                             ),
                         ],
                       ),
-
-                      const SizedBox(height: 5),
-
-                      Text(
-                        message,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          height: 1.35,
-                          color: greyText,
+                      if (message.isNotEmpty) ...[
+                        const SizedBox(
+                          height: 6,
                         ),
+                        Text(
+                          message,
+                          maxLines: 3,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
+                          style:
+                              const TextStyle(
+                            color: greyText,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(
+                        height: 9,
                       ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        _formatTime(createdAt),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFFAAAAAA),
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            _formatTime(
+                              createdAt,
+                            ),
+                            style:
+                                const TextStyle(
+                              color: Color(
+                                0xFFAAAAAA,
+                              ),
+                              fontSize: 11,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_canOpen(
+                            type,
+                            referenceId,
+                          ))
+                            const Row(
+                              children: [
+                                Text(
+                                  'View',
+                                  style:
+                                      TextStyle(
+                                    color:
+                                        primaryRed,
+                                    fontSize: 11,
+                                    fontWeight:
+                                        FontWeight
+                                            .w700,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 3,
+                                ),
+                                Icon(
+                                  Icons
+                                      .arrow_forward_ios_rounded,
+                                  color:
+                                      primaryRed,
+                                  size: 11,
+                                ),
+                              ],
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -266,32 +487,273 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _handleNotificationTap({
+    required String notificationId,
+    required Map<String, dynamic> data,
+  }) async {
+    if (_isOpeningNotification) return;
+
+    setState(() {
+      _isOpeningNotification = true;
+    });
+
+    final bool isRead =
+        data['isRead'] == true;
+
+    final String type =
+        data['type']
+                ?.toString()
+                .toLowerCase()
+                .trim() ??
+            'general';
+
+    final String referenceId =
+        data['referenceId']
+                ?.toString()
+                .trim() ??
+            '';
+
+    try {
+      if (!isRead) {
+        await _notificationService
+            .markAsRead(
+          notificationId,
+        );
+      }
+
+      if (!mounted) return;
+
+      switch (type) {
+        case 'message':
+          if (referenceId.isNotEmpty) {
+            await _openChat(
+              referenceId,
+            );
+          }
+          break;
+
+        case 'review':
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  const RateReviewScreen(),
+            ),
+          );
+          break;
+
+        case 'exchange':
+  if (referenceId.isNotEmpty) {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => IncomingExchangeRequestScreen(
+          exchangeRequestId: referenceId,
+        ),
+      ),
+    );
+  }
+  break;
+        case 'booking':
+          _showFeatureMessage(
+            'Open My Bookings to view this booking update.',
+          );
+          break;
+
+        case 'payment':
+          _showFeatureMessage(
+            'Open your booking or transaction history to view this payment update.',
+          );
+          break;
+
+        default:
+          break;
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      _showFeatureMessage(
+        error
+            .toString()
+            .replaceFirst(
+              'Exception: ',
+              '',
+            ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningNotification =
+              false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openChat(
+    String chatId,
+  ) async {
+    final document =
+        await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chatId)
+            .get();
+
+    if (!document.exists) {
+      throw Exception(
+        'This conversation is no longer available.',
+      );
+    }
+
+    final data =
+        document.data() ?? {};
+
+    final dynamic rawParticipants =
+        data['participants'];
+
+    final List<String> participants =
+        rawParticipants is List
+            ? rawParticipants
+                .map(
+                  (item) =>
+                      item.toString(),
+                )
+                .toList()
+            : [];
+
+    final String currentUserId =
+        _chatService.currentUserId;
+
+    final String otherUserId =
+        participants.firstWhere(
+      (id) => id != currentUserId,
+      orElse: () => '',
+    );
+
+    if (otherUserId.isEmpty) {
+      throw Exception(
+        'Chat participant information is missing.',
+      );
+    }
+
+    String otherUserName =
+        'Rent Lanka User';
+
+    final dynamic rawNames =
+        data['participantNames'];
+
+    if (rawNames is Map) {
+      final String storedName =
+          rawNames[otherUserId]
+                  ?.toString()
+                  .trim() ??
+              '';
+
+      if (storedName.isNotEmpty) {
+        otherUserName =
+            storedName;
+      }
+    }
+
+    if (otherUserName ==
+        'Rent Lanka User') {
+      otherUserName =
+          await _chatService
+              .getUserDisplayName(
+        otherUserId,
+      );
+    }
+
+    if (!mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: chatId,
+          chatName: otherUserName,
+          otherUserId: otherUserId,
+        ),
+      ),
+    );
+  }
+
+  
+
+  void _showFeatureMessage(
+    String message,
+  ) {
+    ScaffoldMessenger.of(context)
+        .hideCurrentSnackBar();
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  Widget _buildTypeIcon({
+    required String type,
+  }) {
+    return Container(
+      width: 50,
+      height: 50,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color:
+            _iconBackground(type),
+        borderRadius:
+            BorderRadius.circular(14),
+      ),
+      child: Icon(
+        _iconForType(type),
+        color: _iconColor(type),
+        size: 24,
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return const Center(
       child: Padding(
-        padding: EdgeInsets.all(30),
+        padding: EdgeInsets.all(32),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize:
+              MainAxisSize.min,
           children: [
-            Icon(Icons.notifications_none, size: 58, color: Color(0xFFB5B5B5)),
-
-            SizedBox(height: 14),
-
+            CircleAvatar(
+              radius: 39,
+              backgroundColor:
+                  Color(0xFFFFEEF1),
+              child: Icon(
+                Icons
+                    .notifications_none_rounded,
+                size: 36,
+                color: primaryRed,
+              ),
+            ),
+            SizedBox(height: 18),
             Text(
               'No notifications yet',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
                 color: darkText,
+                fontSize: 18,
+                fontWeight:
+                    FontWeight.w800,
               ),
             ),
-
-            SizedBox(height: 6),
-
+            SizedBox(height: 7),
             Text(
-              'Booking, exchange and message updates will appear here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: greyText),
+              'Exchange, message, booking and account updates will appear here.',
+              textAlign:
+                  TextAlign.center,
+              style: TextStyle(
+                color: greyText,
+                fontSize: 13,
+                height: 1.5,
+              ),
             ),
           ],
         ),
@@ -299,113 +761,251 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
-  static DateTime _getDate(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate().toLocal();
-    }
-
-    return DateTime.fromMillisecondsSinceEpoch(0);
+  Widget _buildErrorState() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: primaryRed,
+              size: 52,
+            ),
+            SizedBox(height: 14),
+            Text(
+              'Unable to load notifications',
+              style: TextStyle(
+                color: darkText,
+                fontSize: 17,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Please try again in a moment.',
+              textAlign:
+                  TextAlign.center,
+              style: TextStyle(
+                color: greyText,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  static String _formatTime(DateTime date) {
-    if (date.millisecondsSinceEpoch == 0) {
+ bool _canOpen(
+  String type,
+  String referenceId,
+) {
+  if (type == 'review') {
+    return true;
+  }
+
+  if ((type == 'message' || type == 'exchange') &&
+      referenceId.isNotEmpty) {
+    return true;
+  }
+
+  return false;
+}
+
+  static DateTime _getDate(
+    dynamic value,
+  ) {
+    if (value is Timestamp) {
+      return value
+          .toDate()
+          .toLocal();
+    }
+
+    return DateTime
+        .fromMillisecondsSinceEpoch(
+      0,
+    );
+  }
+
+  static String _formatTime(
+    DateTime date,
+  ) {
+    if (date.millisecondsSinceEpoch ==
+        0) {
       return '';
     }
 
-    final DateTime now = DateTime.now();
+    final DateTime now =
+        DateTime.now();
 
-    final DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime today =
+        DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
 
-    final DateTime itemDate = DateTime(date.year, date.month, date.day);
+    final DateTime itemDate =
+        DateTime(
+      date.year,
+      date.month,
+      date.day,
+    );
 
-    final int days = today.difference(itemDate).inDays;
+    final int days =
+        today
+            .difference(itemDate)
+            .inDays;
 
     if (days == 0) {
-      int hour = date.hour;
-
-      final String period = hour >= 12 ? 'PM' : 'AM';
-
-      if (hour == 0) {
-        hour = 12;
-      } else if (hour > 12) {
-        hour -= 12;
-      }
-
-      final String minute = date.minute.toString().padLeft(2, '0');
-
-      return '$hour:$minute $period';
+      return _clockTime(date);
     }
 
     if (days == 1) {
       return 'Yesterday';
     }
 
+    if (days < 7) {
+      const weekdays = [
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat',
+        'Sun',
+      ];
+
+      return weekdays[
+          date.weekday - 1];
+    }
+
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  static IconData _iconForType(String type) {
+  static String _clockTime(
+    DateTime date,
+  ) {
+    int hour = date.hour;
+
+    final String period =
+        hour >= 12
+            ? 'PM'
+            : 'AM';
+
+    if (hour == 0) {
+      hour = 12;
+    } else if (hour > 12) {
+      hour -= 12;
+    }
+
+    final String minute =
+        date.minute
+            .toString()
+            .padLeft(2, '0');
+
+    return '$hour:$minute $period';
+  }
+
+  static IconData _iconForType(
+    String type,
+  ) {
     switch (type) {
       case 'exchange':
-        return Icons.swap_horiz_rounded;
+        return Icons
+            .swap_horiz_rounded;
 
       case 'message':
-        return Icons.chat_bubble_outline;
+        return Icons
+            .chat_bubble_outline_rounded;
 
       case 'booking':
-        return Icons.calendar_month_outlined;
+        return Icons
+            .calendar_month_outlined;
 
       case 'payment':
-        return Icons.payments_outlined;
+        return Icons
+            .payments_outlined;
 
       case 'review':
-        return Icons.star_outline;
+        return Icons
+            .star_outline_rounded;
 
       default:
-        return Icons.notifications_none;
+        return Icons
+            .notifications_none_rounded;
     }
   }
 
-  static Color _iconColor(String type) {
+  static Color _iconColor(
+    String type,
+  ) {
     switch (type) {
       case 'exchange':
         return primaryRed;
 
       case 'message':
-        return const Color(0xFF1565FF);
+        return const Color(
+          0xFF3578D4,
+        );
 
       case 'booking':
-        return const Color(0xFF8A3FFC);
+        return const Color(
+          0xFF8454C7,
+        );
 
       case 'payment':
-        return const Color(0xFF00A86B);
+        return const Color(
+          0xFF24945E,
+        );
 
       case 'review':
-        return const Color(0xFFFFA000);
+        return const Color(
+          0xFFE59B13,
+        );
 
       default:
         return primaryRed;
     }
   }
 
-  static Color _iconBackground(String type) {
+  static Color _iconBackground(
+    String type,
+  ) {
     switch (type) {
       case 'exchange':
-        return const Color(0xFFFFEDF0);
+        return const Color(
+          0xFFFFEEF1,
+        );
 
       case 'message':
-        return const Color(0xFFEAF1FF);
+        return const Color(
+          0xFFEDF4FF,
+        );
 
       case 'booking':
-        return const Color(0xFFF1E9FF);
+        return const Color(
+          0xFFF3EDFF,
+        );
 
       case 'payment':
-        return const Color(0xFFE5F8EF);
+        return const Color(
+          0xFFEAF8F1,
+        );
 
       case 'review':
-        return const Color(0xFFFFF4DC);
+        return const Color(
+          0xFFFFF6E5,
+        );
 
       default:
-        return const Color(0xFFFFEDF0);
+        return const Color(
+          0xFFFFEEF1,
+        );
     }
   }
 }
