@@ -109,6 +109,7 @@ class MessagesScreen extends StatelessWidget {
 
                           return _buildConversationTile(
                             context: context,
+                            chatService: chatService,
                             chatId: document.id,
                             otherUserId: otherUserId,
                             otherUserName: otherUserName,
@@ -162,6 +163,7 @@ class MessagesScreen extends StatelessWidget {
 
   Widget _buildConversationTile({
     required BuildContext context,
+    required ChatService chatService,
     required String chatId,
     required String otherUserId,
     required String otherUserName,
@@ -176,8 +178,20 @@ class MessagesScreen extends StatelessWidget {
       child: InkWell(
         onTap: otherUserId.isEmpty
             ? null
-            : () {
-                Navigator.push(
+            : () async {
+                // Clear unread count when
+                // the user opens this chat.
+                try {
+                  await chatService.markChatAsRead(chatId);
+                } catch (error) {
+                  debugPrint('Unable to mark chat as read: $error');
+                }
+
+                if (!context.mounted) {
+                  return;
+                }
+
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => ChatScreen(
@@ -187,6 +201,17 @@ class MessagesScreen extends StatelessWidget {
                     ),
                   ),
                 );
+
+                // Mark again after returning,
+                // in case messages arrived while
+                // the chat was open.
+                try {
+                  await chatService.markChatAsRead(chatId);
+                } catch (error) {
+                  debugPrint(
+                    'Unable to mark chat as read after return: $error',
+                  );
+                }
               },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 6),
@@ -303,9 +328,7 @@ class MessagesScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.chat_bubble_outline, size: 56, color: Color(0xFFB5B5B5)),
-
             SizedBox(height: 14),
-
             Text(
               'No conversations yet',
               style: TextStyle(
@@ -314,9 +337,7 @@ class MessagesScreen extends StatelessWidget {
                 color: darkText,
               ),
             ),
-
             SizedBox(height: 6),
-
             Text(
               'Your conversations with players and providers will appear here.',
               textAlign: TextAlign.center,
