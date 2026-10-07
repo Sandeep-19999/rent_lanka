@@ -50,20 +50,19 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB0NdUJBExzWuq6HMIOIcsamuFcl4TLr5Y',
-    appId: '1:760220691970:web:318eab5ec81d2f3e58811b',
-    messagingSenderId: '760220691970',
-    projectId: 'rent-lanka-b9100',
-    authDomain: 'rent-lanka-b9100.firebaseapp.com',
-    storageBucket: 'rent-lanka-b9100.firebasestorage.app',
-    measurementId: 'G-8L6SJSJ37D',
+    apiKey: 'AIzaSyAbJHQm-ndBOFW1wrNL-_BivFSmj5w7aSc',
+    appId: '1:1028308548721:web:935e98e09e2d8c68406fd0',
+    messagingSenderId: '1028308548721',
+    projectId: 'rent-lanka',
+    authDomain: 'rent-lanka.firebaseapp.com',
+    storageBucket: 'rent-lanka.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyB_kOgz4gCOyKx1QmdUbPRh-8edVttLIXc',
-    appId: '1:760220691970:android:1e5e2515d0cbfa5758811b',
-    messagingSenderId: '760220691970',
-    projectId: 'rent-lanka-b9100',
-    storageBucket: 'rent-lanka-b9100.firebasestorage.app',
+    apiKey: 'AIzaSyA9e8WRnfM1C_HBxeDRuQaC1N7lQvPf2DM',
+    appId: '1:1028308548721:android:03b272df56874d78406fd0',
+    messagingSenderId: '1028308548721',
+    projectId: 'rent-lanka',
+    storageBucket: 'rent-lanka.firebasestorage.app',
   );
 }
