@@ -1,19 +1,91 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../services/chat_service.dart';
 import '../services/exchange_service.dart';
+import 'chat_screen.dart';
 
-class ExchangeStatusScreen extends StatelessWidget {
+class ExchangeStatusScreen extends StatefulWidget {
   final String exchangeRequestId;
 
   const ExchangeStatusScreen({super.key, required this.exchangeRequestId});
 
+  @override
+  State<ExchangeStatusScreen> createState() => _ExchangeStatusScreenState();
+}
+
+class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
   static const Color primaryRed = Color(0xFFED1235);
+
+  final ExchangeService _exchangeService = ExchangeService();
+
+  final ChatService _chatService = ChatService();
+
+  bool _isOpeningChat = false;
+  bool _isCancelling = false;
+
+  Future<void> _messageProvider(String providerId) async {
+    if (providerId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Provider information is missing.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isOpeningChat = true;
+    });
+
+    try {
+      final String providerName = await _chatService.getUserDisplayName(
+        providerId,
+      );
+
+      final String chatId = await _chatService.ensureChat(
+        otherUserId: providerId,
+        otherUserName: providerName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            chatId: chatId,
+            chatName: providerName,
+            otherUserId: providerId,
+          ),
+        ),
+      );
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Unable to open chat.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Unable to open chat: $error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningChat = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final ExchangeService exchangeService = ExchangeService();
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -21,13 +93,16 @@ class ExchangeStatusScreen extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: exchangeService.watchExchangeRequest(exchangeRequestId),
+              stream: _exchangeService.watchExchangeRequest(
+                widget.exchangeRequestId,
+              ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return _buildErrorState(context);
                 }
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(color: primaryRed),
                   );
@@ -51,7 +126,11 @@ class ExchangeStatusScreen extends StatelessWidget {
                     data['offeredEquipmentName']?.toString() ??
                     'Offered equipment';
 
-                final String status = data['status']?.toString() ?? 'pending';
+                final String requestedProviderId =
+                    data['requestedProviderId']?.toString() ?? '';
+
+                final String status =
+                    data['status']?.toString().toLowerCase() ?? 'pending';
 
                 final Timestamp? createdTimestamp =
                     data['createdAt'] is Timestamp
@@ -91,27 +170,38 @@ class ExchangeStatusScreen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 50,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Chat screen will be connected next.',
-                                ),
-                              ),
-                            );
-                          },
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              _isOpeningChat || requestedProviderId.isEmpty
+                              ? null
+                              : () {
+                                  _messageProvider(requestedProviderId);
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryRed,
                             foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFFFFA7B5),
+                            disabledForegroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
-                            'Message provider',
-                            style: TextStyle(
+                          icon: _isOpeningChat
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.chat_bubble_outline, size: 20),
+                          label: Text(
+                            _isOpeningChat
+                                ? 'Opening chat...'
+                                : 'Message provider',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
@@ -125,9 +215,8 @@ class ExchangeStatusScreen extends StatelessWidget {
                         width: double.infinity,
                         height: 50,
                         child: OutlinedButton(
-                          onPressed: status == 'pending'
-                              ? () =>
-                                    _showCancelDialog(context, exchangeService)
+                          onPressed: status == 'pending' && !_isCancelling
+                              ? _showCancelDialog
                               : null,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: const Color(0xFF242424),
@@ -142,15 +231,24 @@ class ExchangeStatusScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: Text(
-                            status == 'cancelled'
-                                ? 'Request cancelled'
-                                : 'Cancel request',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                          child: _isCancelling
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: primaryRed,
+                                  ),
+                                )
+                              : Text(
+                                  status == 'cancelled'
+                                      ? 'Request cancelled'
+                                      : 'Cancel request',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -181,7 +279,9 @@ class ExchangeStatusScreen extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(width: 14),
+
         const Text(
           'Exchange status',
           style: TextStyle(
@@ -241,10 +341,7 @@ class ExchangeStatusScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _showCancelDialog(
-    BuildContext context,
-    ExchangeService exchangeService,
-  ) async {
+  Future<void> _showCancelDialog() async {
     final bool? shouldCancel = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -278,10 +375,14 @@ class ExchangeStatusScreen extends StatelessWidget {
       return;
     }
 
-    try {
-      await exchangeService.cancelExchangeRequest(exchangeRequestId);
+    setState(() {
+      _isCancelling = true;
+    });
 
-      if (!context.mounted) {
+    try {
+      await _exchangeService.cancelExchangeRequest(widget.exchangeRequestId);
+
+      if (!mounted) {
         return;
       }
 
@@ -289,7 +390,7 @@ class ExchangeStatusScreen extends StatelessWidget {
         const SnackBar(content: Text('Exchange request cancelled.')),
       );
     } on FirebaseException catch (error) {
-      if (!context.mounted) {
+      if (!mounted) {
         return;
       }
 
@@ -297,13 +398,19 @@ class ExchangeStatusScreen extends StatelessWidget {
         SnackBar(content: Text(error.message ?? 'Unable to cancel request.')),
       );
     } catch (error) {
-      if (!context.mounted) {
+      if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unable to cancel request: $error')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCancelling = false;
+        });
+      }
     }
   }
 
@@ -314,12 +421,16 @@ class ExchangeStatusScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.error_outline, size: 50, color: primaryRed),
+
           const SizedBox(height: 15),
+
           const Text(
             'Unable to load exchange request.',
             textAlign: TextAlign.center,
           ),
+
           const SizedBox(height: 20),
+
           OutlinedButton(
             onPressed: () {
               Navigator.maybePop(context);
@@ -338,12 +449,16 @@ class ExchangeStatusScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.swap_horiz, size: 55, color: Color(0xFF999999)),
+
           const SizedBox(height: 15),
+
           const Text(
             'Exchange request not found.',
             textAlign: TextAlign.center,
           ),
+
           const SizedBox(height: 20),
+
           OutlinedButton(
             onPressed: () {
               Navigator.maybePop(context);
@@ -359,12 +474,16 @@ class ExchangeStatusScreen extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'accepted':
         return 'Accepted';
+
       case 'rejected':
         return 'Rejected';
+
       case 'cancelled':
         return 'Cancelled';
+
       case 'completed':
         return 'Completed';
+
       case 'pending':
       default:
         return 'Pending provider response';

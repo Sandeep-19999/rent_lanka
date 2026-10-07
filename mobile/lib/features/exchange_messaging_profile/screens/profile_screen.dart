@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/profile_service.dart';
@@ -11,7 +12,9 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   static const Color primaryRed = Color(0xFFED1235);
+
   static const Color darkText = Color(0xFF242424);
+
   static const Color greyText = Color(0xFF929292);
 
   @override
@@ -391,28 +394,64 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Log out?'),
+          backgroundColor: Colors.white,
+          title: const Text(
+            'Log out?',
+            style: TextStyle(fontWeight: FontWeight.w700, color: darkText),
+          ),
           content: const Text('Are you sure you want to log out?'),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext);
               },
-              child: const Text('Cancel'),
+              child: const Text('Cancel', style: TextStyle(color: darkText)),
             ),
+
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext);
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Logout will be connected with the authentication module.',
+                try {
+                  await FirebaseAuth.instance.signOut();
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  // Return to the first route.
+                  // member3_preview.dart authStateChanges()
+                  // will then show the Login screen.
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                } on FirebaseAuthException catch (error) {
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(error.message ?? 'Unable to log out.'),
                     ),
-                  ),
-                );
+                  );
+                } catch (_) {
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Unable to log out. Please try again.'),
+                    ),
+                  );
+                }
               },
-              child: const Text('Log out', style: TextStyle(color: primaryRed)),
+              child: const Text(
+                'Log out',
+                style: TextStyle(
+                  color: primaryRed,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         );

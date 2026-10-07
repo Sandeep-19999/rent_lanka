@@ -1,26 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/review_equipment_option.dart';
+import '../services/completed_rental_service.dart';
 import '../services/review_service.dart';
 
 class RateReviewScreen extends StatefulWidget {
-  final List<ReviewEquipmentOption>? equipmentOptions;
-
-  final String equipmentId;
-  final String providerId;
-  final String bookingId;
-  final String equipmentName;
-  final String rentedDate;
-
-  const RateReviewScreen({
-    super.key,
-    this.equipmentOptions,
-    this.equipmentId = 'demo_ss_cricket_bat',
-    this.providerId = 'demo_provider_001',
-    this.bookingId = 'demo_booking_001',
-    this.equipmentName = 'SS Cricket Bat',
-    this.rentedDate = '15 Sep',
-  });
+  const RateReviewScreen({super.key});
 
   @override
   State<RateReviewScreen> createState() => _RateReviewScreenState();
@@ -28,50 +13,28 @@ class RateReviewScreen extends StatefulWidget {
 
 class _RateReviewScreenState extends State<RateReviewScreen> {
   static const Color primaryRed = Color(0xFFED1235);
+
   static const Color darkText = Color(0xFF242424);
+
   static const Color greyText = Color(0xFF929292);
 
   final TextEditingController _reviewController = TextEditingController();
 
   final ReviewService _reviewService = ReviewService();
 
-  late final List<ReviewEquipmentOption> _equipmentOptions;
+  final CompletedRentalService _completedRentalService =
+      CompletedRentalService();
 
   ReviewEquipmentOption? _selectedEquipment;
 
   int _selectedRating = 0;
 
-  bool _isLoadingReview = true;
+  bool _isLoadingReview = false;
   bool _isSaving = false;
   bool _hasExistingReview = false;
-
   bool _showEquipmentOptions = false;
 
-  @override
-  void initState() {
-    super.initState();
-
-    if (widget.equipmentOptions != null &&
-        widget.equipmentOptions!.isNotEmpty) {
-      _equipmentOptions = List<ReviewEquipmentOption>.from(
-        widget.equipmentOptions!,
-      );
-    } else {
-      _equipmentOptions = [
-        ReviewEquipmentOption(
-          equipmentId: widget.equipmentId,
-          providerId: widget.providerId,
-          bookingId: widget.bookingId,
-          equipmentName: widget.equipmentName,
-          rentedDate: widget.rentedDate,
-        ),
-      ];
-    }
-
-    _selectedEquipment = _equipmentOptions.first;
-
-    _loadSelectedEquipmentReview();
-  }
+  String? _loadedBookingId;
 
   @override
   void dispose() {
@@ -100,11 +63,15 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
         return;
       }
 
-      if (review != null) {
-        _selectedRating = review.rating;
-        _reviewController.text = review.comment;
-        _hasExistingReview = true;
-      }
+      setState(() {
+        if (review != null) {
+          _selectedRating = review.rating;
+          _reviewController.text = review.comment;
+          _hasExistingReview = true;
+        }
+
+        _loadedBookingId = selected.bookingId;
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -123,19 +90,14 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
   }
 
   Future<void> _selectEquipment(ReviewEquipmentOption equipment) async {
-    if (equipment.bookingId == _selectedEquipment?.bookingId) {
-      setState(() {
-        _showEquipmentOptions = false;
-      });
-      return;
-    }
-
     setState(() {
       _selectedEquipment = equipment;
       _showEquipmentOptions = false;
     });
 
-    await _loadSelectedEquipmentReview();
+    if (_loadedBookingId != equipment.bookingId) {
+      await _loadSelectedEquipmentReview();
+    }
   }
 
   Future<void> _saveReview() async {
@@ -185,6 +147,7 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
 
       setState(() {
         _hasExistingReview = true;
+        _loadedBookingId = selected.bookingId;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -226,7 +189,9 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Delete review?'),
-          content: Text('Delete your review for ${selected.equipmentName}?'),
+          content: Text(
+            'Are you sure you want to delete your review for ${selected.equipmentName}?',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -260,10 +225,12 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
         _selectedRating = 0;
         _reviewController.clear();
         _hasExistingReview = false;
+        _loadedBookingId = selected.bookingId;
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Review deleted.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review deleted successfully.')),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -277,190 +244,236 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selected = _selectedEquipment;
+    return StreamBuilder<List<ReviewEquipmentOption>>(
+      stream: _completedRentalService.watchCompletedRentals(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _buildErrorScreen(snapshot.error);
+        }
 
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: SafeArea(
+              child: Center(
+                child: CircularProgressIndicator(color: primaryRed),
+              ),
+            ),
+          );
+        }
+
+        final rentals = snapshot.data ?? [];
+
+        if (rentals.isEmpty) {
+          return _buildEmptyScreen();
+        }
+
+        _prepareSelection(rentals);
+
+        return _buildMainScreen(rentals);
+      },
+    );
+  }
+
+  void _prepareSelection(List<ReviewEquipmentOption> rentals) {
+    if (_selectedEquipment == null) {
+      _selectedEquipment = rentals.first;
+
+      if (_loadedBookingId != rentals.first.bookingId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _loadSelectedEquipmentReview();
+          }
+        });
+      }
+
+      return;
+    }
+
+    final bool stillExists = rentals.any(
+      (rental) => rental.bookingId == _selectedEquipment!.bookingId,
+    );
+
+    if (!stillExists) {
+      _selectedEquipment = rentals.first;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadSelectedEquipmentReview();
+        }
+      });
+    }
+  }
+
+  Widget _buildMainScreen(List<ReviewEquipmentOption> rentals) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: GestureDetector(
-        onTap: () {
-          if (_showEquipmentOptions) {
-            setState(() {
-              _showEquipmentOptions = false;
-            });
-          }
-          FocusScope.of(context).unfocus();
-        },
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
 
-                    const SizedBox(height: 34),
+                  const SizedBox(height: 34),
 
-                    const Text(
-                      'Select equipment',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: greyText,
-                      ),
+                  const Text(
+                    'Select equipment',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: greyText,
                     ),
+                  ),
 
+                  const SizedBox(height: 8),
+
+                  _buildEquipmentSelector(),
+
+                  if (_showEquipmentOptions) ...[
                     const SizedBox(height: 8),
+                    _buildEquipmentOptionsList(rentals),
+                  ],
 
-                    _buildEquipmentSelector(),
+                  const SizedBox(height: 28),
 
-                    AnimatedCrossFade(
-                      duration: const Duration(milliseconds: 220),
-                      crossFadeState: _showEquipmentOptions
-                          ? CrossFadeState.showFirst
-                          : CrossFadeState.showSecond,
-                      firstChild: _buildEquipmentOptionsList(),
-                      secondChild: const SizedBox.shrink(),
-                    ),
+                  const Divider(color: Color(0xFFE8E8E8)),
 
-                    const SizedBox(height: 22),
+                  const SizedBox(height: 28),
 
-                    const Divider(color: Color(0xFFE8E8E8)),
-
-                    const SizedBox(height: 20),
-
-                    const Center(
-                      child: Text(
-                        'How was your rental?',
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                          color: darkText,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    if (_isLoadingReview)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 18),
-                          child: CircularProgressIndicator(color: primaryRed),
-                        ),
-                      )
-                    else
-                      _buildStarRating(),
-
-                    const SizedBox(height: 28),
-
-                    const Text(
-                      'Review',
+                  const Center(
+                    child: Text(
+                      'How was your rental?',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
                         color: darkText,
                       ),
                     ),
+                  ),
 
-                    const SizedBox(height: 9),
+                  const SizedBox(height: 20),
 
-                    TextField(
-                      controller: _reviewController,
-                      enabled: !_isLoadingReview,
-                      minLines: 5,
-                      maxLines: 5,
-                      decoration: InputDecoration(
-                        hintText: selected == null
-                            ? 'Select equipment first'
-                            : 'Share your experience...',
-                        hintStyle: const TextStyle(
-                          color: Color(0xFF999999),
-                          fontSize: 14,
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF8F9FB),
-                        contentPadding: const EdgeInsets.all(15),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE0E0E0),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: const BorderSide(
-                            color: primaryRed,
-                            width: 1.3,
-                          ),
+                  if (_isLoadingReview)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: CircularProgressIndicator(color: primaryRed),
+                      ),
+                    )
+                  else
+                    _buildStarRating(),
+
+                  const SizedBox(height: 36),
+
+                  const Text(
+                    'Review',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: darkText,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  TextField(
+                    controller: _reviewController,
+                    enabled: !_isLoadingReview,
+                    minLines: 5,
+                    maxLines: 5,
+                    decoration: InputDecoration(
+                      hintText: 'Share your experience...',
+                      hintStyle: const TextStyle(
+                        color: Color(0xFF999999),
+                        fontSize: 14,
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FB),
+                      contentPadding: const EdgeInsets.all(15),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(
+                          color: primaryRed,
+                          width: 1.3,
                         ),
                       ),
                     ),
+                  ),
 
-                    const Spacer(),
+                  const SizedBox(height: 28),
 
-                    if (_hasExistingReview)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: OutlinedButton(
-                            onPressed: _isSaving ? null : _deleteReview,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryRed,
-                              side: const BorderSide(color: primaryRed),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                            ),
-                            child: const Text(
-                              'Delete review',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ),
-                      ),
-
+                  if (_hasExistingReview) ...[
                     SizedBox(
                       width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isSaving || _isLoadingReview
-                            ? null
-                            : _saveReview,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryRed,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
+                      height: 54,
+                      child: OutlinedButton(
+                        onPressed: _isSaving ? null : _deleteReview,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryRed,
+                          side: const BorderSide(color: primaryRed),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
                           ),
                         ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                _hasExistingReview
-                                    ? 'Update review'
-                                    : 'Submit review',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                        child: const Text(
+                          'Delete review',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
+
+                    const SizedBox(height: 12),
                   ],
-                ),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _isSaving || _isLoadingReview
+                          ? null
+                          : _saveReview,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryRed,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              _hasExistingReview
+                                  ? 'Update review'
+                                  : 'Submit review',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -482,7 +495,9 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
             child: Icon(Icons.arrow_back_ios_new, size: 23, color: darkText),
           ),
         ),
+
         const SizedBox(width: 25),
+
         const Expanded(
           child: Text(
             'Rate your experience',
@@ -537,35 +552,30 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
               const SizedBox(width: 12),
 
               Expanded(
-                child: selected == null
-                    ? const Text(
-                        'Select equipment',
-                        style: TextStyle(color: greyText),
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            selected.equipmentName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: darkText,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Rented on ${selected.rentedDate}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: greyText,
-                            ),
-                          ),
-                        ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      selected?.equipmentName ?? 'Select equipment',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: darkText,
                       ),
+                    ),
+
+                    if (selected != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Completed ${selected.rentedDate}',
+                        style: const TextStyle(fontSize: 12, color: greyText),
+                      ),
+                    ],
+                  ],
+                ),
               ),
 
               const SizedBox(width: 8),
@@ -584,11 +594,11 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
     );
   }
 
-  Widget _buildEquipmentOptionsList() {
+  Widget _buildEquipmentOptionsList(List<ReviewEquipmentOption> rentals) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(10),
+      constraints: const BoxConstraints(maxHeight: 210),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -601,84 +611,81 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: _equipmentOptions.map((equipment) {
+      child: ListView.separated(
+        shrinkWrap: true,
+        itemCount: rentals.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 7),
+        itemBuilder: (context, index) {
+          final equipment = rentals[index];
+
           final bool isSelected =
               equipment.bookingId == _selectedEquipment?.bookingId;
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: InkWell(
-              onTap: () {
-                _selectEquipment(equipment);
-              },
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFFFFF2F4)
-                      : const Color(0xFFF8F9FB),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isSelected ? primaryRed : const Color(0xFFE4E4E4),
+          return InkWell(
+            onTap: () {
+              _selectEquipment(equipment);
+            },
+            borderRadius: BorderRadius.circular(13),
+            child: Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFFFFF2F4)
+                    : const Color(0xFFF8F9FB),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: isSelected ? primaryRed : const Color(0xFFE4E4E4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F5FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.sports,
+                      color: Color(0xFF1687D9),
+                      size: 21,
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F5FF),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: const Icon(
-                        Icons.sports,
-                        color: Color(0xFF1687D9),
-                        size: 22,
-                      ),
-                    ),
 
-                    const SizedBox(width: 12),
+                  const SizedBox(width: 11),
 
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            equipment.equipmentName,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: darkText,
-                            ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          equipment.equipmentName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: darkText,
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Rented on ${equipment.rentedDate}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: greyText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
 
-                    if (isSelected)
-                      const Icon(
-                        Icons.check_circle,
-                        color: primaryRed,
-                        size: 22,
-                      ),
-                  ],
-                ),
+                        const SizedBox(height: 3),
+
+                        Text(
+                          'Completed ${equipment.rentedDate}',
+                          style: const TextStyle(fontSize: 11, color: greyText),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (isSelected)
+                    const Icon(Icons.check_circle, color: primaryRed, size: 21),
+                ],
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -710,6 +717,88 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
           ),
         );
       }),
+    );
+  }
+
+  Widget _buildEmptyScreen() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildHeader(),
+
+                  const Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.rate_review_outlined,
+                            size: 58,
+                            color: Color(0xFFB5B5B5),
+                          ),
+                          SizedBox(height: 14),
+                          Text(
+                            'No completed rentals',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: darkText,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'You can review equipment after a rental is completed.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: greyText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen(Object? error) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildHeader(),
+
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'Unable to load completed rentals.\n$error',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: greyText),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

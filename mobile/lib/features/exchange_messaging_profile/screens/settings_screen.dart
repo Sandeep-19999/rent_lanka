@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/settings_service.dart';
 import 'accessibility_screen.dart';
 import 'payment_methods_screen.dart';
 import 'privacy_security_screen.dart';
@@ -18,7 +19,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   static const Color greyText = Color(0xFF929292);
 
-  bool _notificationsEnabled = true;
+  final SettingsService _settingsService = SettingsService();
+
+  bool _isUpdatingNotifications = false;
+
+  Future<void> _changeNotificationPreference(bool value) async {
+    if (_isUpdatingNotifications) {
+      return;
+    }
+
+    setState(() {
+      _isUpdatingNotifications = true;
+    });
+
+    try {
+      await _settingsService.updateNotificationPreference(value);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value ? 'Notifications enabled.' : 'Notifications disabled.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to update notification setting: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingNotifications = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +93,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   const SizedBox(height: 18),
 
-                  _buildNotificationTile(),
+                  StreamBuilder<bool>(
+                    stream: _settingsService.watchNotificationPreference(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !snapshot.hasData) {
+                        return const SizedBox(
+                          height: 50,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: primaryRed,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final bool enabled = snapshot.data ?? true;
+
+                      return _buildNotificationTile(enabled);
+                    },
+                  ),
 
                   const SizedBox(height: 34),
 
@@ -136,7 +201,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Icon(Icons.arrow_back_ios_new, size: 22, color: darkText),
           ),
         ),
+
         const SizedBox(width: 34),
+
         const Text(
           'Settings',
           style: TextStyle(
@@ -149,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildNotificationTile() {
+  Widget _buildNotificationTile(bool enabled) {
     return Row(
       children: [
         _buildIconBox(
@@ -181,18 +248,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
 
-        Switch(
-          value: _notificationsEnabled,
-          activeThumbColor: Colors.white,
-          activeTrackColor: primaryRed,
-          inactiveThumbColor: Colors.white,
-          inactiveTrackColor: const Color(0xFFD9D9D9),
-          onChanged: (value) {
-            setState(() {
-              _notificationsEnabled = value;
-            });
-          },
-        ),
+        if (_isUpdatingNotifications)
+          const SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: CircularProgressIndicator(
+                color: primaryRed,
+                strokeWidth: 2,
+              ),
+            ),
+          )
+        else
+          Switch(
+            value: enabled,
+            activeThumbColor: Colors.white,
+            activeTrackColor: primaryRed,
+            inactiveThumbColor: Colors.white,
+            inactiveTrackColor: const Color(0xFFD9D9D9),
+            onChanged: _changeNotificationPreference,
+          ),
       ],
     );
   }

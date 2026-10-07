@@ -18,8 +18,9 @@ class ReviewService {
       return user.uid;
     }
 
-    // Temporary preview fallback.
-    return 'demo_member3_user';
+    // Temporary preview/testing fallback.
+    // rental_requests currently use demo_player.
+    return 'demo_player';
   }
 
   String _reviewDocumentId(String bookingId) {
@@ -36,7 +37,27 @@ class ReviewService {
       return null;
     }
 
-    return ReviewModel.fromDocument(document);
+    final data = document.data();
+
+    if (data == null) {
+      return null;
+    }
+
+    return ReviewModel(
+      id: document.id,
+      reviewerId: data['reviewerId']?.toString() ?? '',
+      providerId: data['providerId']?.toString() ?? '',
+      equipmentId: data['equipmentId']?.toString() ?? '',
+      bookingId: data['bookingId']?.toString() ?? '',
+      rating: (data['rating'] as num?)?.toInt() ?? 0,
+      comment: data['comment']?.toString() ?? '',
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
+      updatedAt: data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : null,
+    );
   }
 
   Future<void> saveReview({
@@ -46,33 +67,44 @@ class ReviewService {
     required int rating,
     required String comment,
   }) async {
-    final documentReference = _firestore
+    if (rating < 1 || rating > 5) {
+      throw Exception('Rating must be between 1 and 5.');
+    }
+
+    final String cleanComment = comment.trim();
+
+    if (cleanComment.isEmpty) {
+      throw Exception('Review comment cannot be empty.');
+    }
+
+    final reference = _firestore
         .collection('reviews')
         .doc(_reviewDocumentId(bookingId));
 
-    final existing = await documentReference.get();
+    final existingDocument = await reference.get();
 
-    final data = <String, dynamic>{
+    final Map<String, dynamic> reviewData = {
       'reviewerId': currentUserId,
       'providerId': providerId,
       'equipmentId': equipmentId,
       'bookingId': bookingId,
       'rating': rating,
-      'comment': comment.trim(),
+      'comment': cleanComment,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    if (!existing.exists) {
-      data['createdAt'] = FieldValue.serverTimestamp();
+    if (!existingDocument.exists) {
+      reviewData['createdAt'] = FieldValue.serverTimestamp();
     }
 
-    await documentReference.set(data, SetOptions(merge: true));
+    await reference.set(reviewData, SetOptions(merge: true));
   }
 
   Future<void> deleteReview(String bookingId) async {
-    await _firestore
+    final reference = _firestore
         .collection('reviews')
-        .doc(_reviewDocumentId(bookingId))
-        .delete();
+        .doc(_reviewDocumentId(bookingId));
+
+    await reference.delete();
   }
 }

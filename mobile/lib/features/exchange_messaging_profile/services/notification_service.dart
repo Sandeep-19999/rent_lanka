@@ -10,36 +10,61 @@ class NotificationService {
       _auth = auth ?? FirebaseAuth.instance;
 
   String get currentUserId {
-    final user = _auth.currentUser;
+    final User? user = _auth.currentUser;
 
-    if (user != null) {
-      return user.uid;
+    if (user == null) {
+      throw Exception('You must be logged in to view notifications.');
     }
 
-    // Temporary preview user.
-    return 'demo_member3_user';
+    return user.uid;
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchNotifications() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchMyNotifications() {
     return _firestore
         .collection('notifications')
         .where('userId', isEqualTo: currentUserId)
         .snapshots();
   }
 
-  Future<void> createNotification({
+  Future<String> createNotification({
     required String title,
     required String message,
     required String type,
+    String? referenceId,
   }) async {
-    await _firestore.collection('notifications').add({
-      'userId': currentUserId,
+    return createNotificationForUser(
+      userId: currentUserId,
+      title: title,
+      message: message,
+      type: type,
+      referenceId: referenceId,
+    );
+  }
+
+  Future<String> createNotificationForUser({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    String? referenceId,
+  }) async {
+    if (userId.trim().isEmpty) {
+      throw Exception('Notification user ID is missing.');
+    }
+
+    final reference = _firestore.collection('notifications').doc();
+
+    await reference.set({
+      'userId': userId,
       'title': title,
       'message': message,
       'type': type,
       'isRead': false,
+      'referenceId': referenceId ?? '',
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    return reference.id;
   }
 
   Future<void> markAsRead(String notificationId) async {
@@ -53,48 +78,20 @@ class NotificationService {
   }
 
   Future<void> seedDemoNotifications() async {
-    final collection = _firestore.collection('notifications');
+    final snapshot = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: currentUserId)
+        .limit(1)
+        .get();
 
-    await collection.doc('demo_booking_$currentUserId').set({
-      'userId': currentUserId,
-      'title': 'Booking confirmed',
-      'message': 'Your payment was confirmed for SG-1048.',
-      'type': 'booking',
-      'isRead': false,
-      'createdAt': Timestamp.fromDate(DateTime.now()),
-    }, SetOptions(merge: true));
+    if (snapshot.docs.isNotEmpty) {
+      return;
+    }
 
-    await collection.doc('demo_request_$currentUserId').set({
-      'userId': currentUserId,
-      'title': 'Request accepted',
-      'message': 'Your rental request was accepted.',
-      'type': 'request',
-      'isRead': true,
-      'createdAt': Timestamp.fromDate(
-        DateTime.now().subtract(const Duration(minutes: 5)),
-      ),
-    }, SetOptions(merge: true));
-
-    await collection.doc('demo_payment_$currentUserId').set({
-      'userId': currentUserId,
-      'title': 'Payment confirmed',
-      'message': 'Payment of Rs. 10,400 was successful.',
-      'type': 'payment',
-      'isRead': true,
-      'createdAt': Timestamp.fromDate(
-        DateTime.now().subtract(const Duration(minutes: 10)),
-      ),
-    }, SetOptions(merge: true));
-
-    await collection.doc('demo_return_$currentUserId').set({
-      'userId': currentUserId,
-      'title': 'Return reminder',
-      'message': 'Return your equipment tomorrow.',
-      'type': 'return',
-      'isRead': true,
-      'createdAt': Timestamp.fromDate(
-        DateTime.now().subtract(const Duration(minutes: 15)),
-      ),
-    }, SetOptions(merge: true));
+    await createNotification(
+      title: 'Welcome to Rent Lanka',
+      message: 'Your notifications will appear here.',
+      type: 'general',
+    );
   }
 }
