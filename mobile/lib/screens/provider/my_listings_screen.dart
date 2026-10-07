@@ -900,7 +900,7 @@ import 'package:flutter/material.dart';
 import 'add_equipment_screen.dart';
 import 'listing_details_screen.dart';
 import 'rental_requests_screen.dart';
-import '../../services/auth_service.dart';
+import '../../features/user_discovery/services/auth_service.dart';
 
 class MyListingsScreen extends StatelessWidget {
   const MyListingsScreen({super.key});

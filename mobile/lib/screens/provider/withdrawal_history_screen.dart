@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/auth_service.dart';
+import '../../features/user_discovery/services/auth_service.dart';
 
 class WithdrawalHistoryScreen extends StatelessWidget {
   const WithdrawalHistoryScreen({super.key});

@@ -26,9 +26,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
-import 'firebase_options.dart';
-// import 'screens/provider/provider_dashboard.dart';
-import 'screens/user_discovery/splash_screen.dart';
+import 'package:rent_lanka_mobile/firebase_options.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/splash/splash_screen.dart';
+
+// Provider dashboard import is not needed while User Discovery is the preview flow.
+// import 'package:rent_lanka_mobile/screens/provider/provider_dashboard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

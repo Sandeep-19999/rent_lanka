@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/auth_service.dart';
+import '../../features/user_discovery/services/auth_service.dart';
 import 'add_equipment_screen.dart';
 import 'equipment_performance_screen.dart';
 import 'my_listings_screen.dart';

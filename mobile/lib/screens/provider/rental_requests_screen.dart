@@ -508,7 +508,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'request_details_screen.dart';
-import '../../services/auth_service.dart';
+import '../../features/user_discovery/services/auth_service.dart';
 
 class RentalRequestsScreen extends StatelessWidget {
   const RentalRequestsScreen({super.key});
