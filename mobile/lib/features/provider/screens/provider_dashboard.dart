@@ -1,4 +1,7 @@
+import '../widgets/provider_bottom_navigation.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/provider_dashboard_model.dart';
 import '../services/provider_dashboard_service.dart';
@@ -530,6 +533,10 @@ class ProviderDashboard extends StatelessWidget {
   Widget _buildHeader(
     BuildContext context,
   ) {
+    final user = FirebaseAuth.instance.currentUser;
+    final authName = user?.displayName?.trim() ?? '';
+    final fallbackName = authName.isNotEmpty ? authName : 'Provider';
+
     return Row(
       children: [
         const CircleAvatar(
@@ -550,13 +557,13 @@ class ProviderDashboard extends StatelessWidget {
           width: 12,
         ),
 
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment
                     .start,
             children: [
-              Text(
+              const Text(
                 'Welcome back,',
                 style: TextStyle(
                   fontSize: 13,
@@ -565,18 +572,31 @@ class ProviderDashboard extends StatelessWidget {
                 ),
               ),
 
-              SizedBox(
+              const SizedBox(
                 height: 3,
               ),
 
-              Text(
-                'Kamal',
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight:
-                      FontWeight
-                          .w800,
-                ),
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: user == null
+                    ? null
+                    : FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user.uid)
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  final name = snapshot.data?.data()?['name']
+                          ?.toString().trim() ??
+                      '';
+                  return Text(
+                    name.isNotEmpty ? name : fallbackName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -831,108 +851,8 @@ class ProviderDashboard extends StatelessWidget {
   // BOTTOM NAVIGATION
   // =========================================================
 
-  Widget _buildBottomNavigation(
-    BuildContext context,
-  ) {
-    return Container(
-      height: 75,
-      decoration:
-          const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(
-            color:
-                Color(
-              0xFFE8E8E8,
-            ),
-          ),
-        ),
-      ),
-      child: Center(
-        child: SizedBox(
-          width: 420,
-          child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment
-                    .spaceAround,
-            children: [
-              const _BottomNavItem(
-                icon:
-                    Icons.grid_view_rounded,
-                label:
-                    'Dashboard',
-                active: true,
-              ),
-
-              _BottomNavItem(
-                icon:
-                    Icons.hexagon_outlined,
-                label:
-                    'My Items',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (
-                        context,
-                      ) =>
-                              const MyListingsScreen(),
-                    ),
-                  );
-                },
-              ),
-
-              _BottomNavItem(
-                icon: Icons
-                    .shopping_bag_outlined,
-                label:
-                    'Requests',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (
-                        context,
-                      ) =>
-                              const RentalRequestsScreen(),
-                    ),
-                  );
-                },
-              ),
-
-              _BottomNavItem(
-                icon: Icons
-                    .chat_bubble_outline,
-                label:
-                    'Messages',
-                onTap: () {
-                  _showComingSoon(
-                    context,
-                    'Messages',
-                  );
-                },
-              ),
-
-              _BottomNavItem(
-                icon:
-                    Icons.person_outline,
-                label:
-                    'Profile',
-                onTap: () {
-                  _showComingSoon(
-                    context,
-                    'Profile',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildBottomNavigation(BuildContext context) =>
+      const ProviderBottomNavigation(currentIndex: 0);
 
   static String _formatPrice(
     double value,
@@ -1378,67 +1298,3 @@ class _SummaryRow
 // ===========================================================
 // BOTTOM NAVIGATION ITEM
 // ===========================================================
-
-class _BottomNavItem
-    extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback? onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    this.active = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    const Color red =
-        Color(0xFFED1235);
-
-    return InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        width: 67,
-        height: 65,
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: active
-                  ? red
-                  : Colors.grey,
-            ),
-
-            const SizedBox(
-              height: 5,
-            ),
-
-            Text(
-              label,
-              style:
-                  TextStyle(
-                fontSize: 9,
-                color: active
-                    ? red
-                    : Colors.grey,
-                fontWeight: active
-                    ? FontWeight
-                        .w700
-                    : FontWeight
-                        .w400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

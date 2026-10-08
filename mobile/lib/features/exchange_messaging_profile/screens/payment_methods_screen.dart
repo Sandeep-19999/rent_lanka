@@ -107,12 +107,14 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
         ),
         const SizedBox(width: 28),
-        const Text(
-          'Payment methods',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: darkText,
+        const Expanded(
+          child: Text(
+            'Payment methods',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: darkText,
+            ),
           ),
         ),
       ],
@@ -195,17 +197,14 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   Future<void> _showAddCardDialog() async {
-    final numberController = TextEditingController();
-
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Add payment method'),
-          content: TextField(
-            controller: numberController,
+          content: const TextField(
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Card number',
               hintText: '•••• •••• •••• ••••',
             ),
@@ -239,7 +238,5 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         );
       },
     );
-
-    numberController.dispose();
   }
 }

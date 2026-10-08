@@ -18,7 +18,6 @@ class _EditProfileScreenState
     extends State<EditProfileScreen> {
   static const Color primaryRed = Color(0xFFED1235);
   static const Color darkText = Color(0xFF242424);
-  static const Color greyText = Color(0xFF7D7D7D);
   static const Color borderColor = Color(0xFFE4E4E4);
   static const Color backgroundColor = Color(0xFFF8F8F8);
 
@@ -318,9 +317,24 @@ class _EditProfileScreenState
               ),
               child: Column(
                 children: [
-                  _buildProfilePhoto(),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFFFFEEF1), Colors.white],
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFFFFDFE6)),
+                    ),
+                    child: Column(children: [
+                      _buildProfilePhoto(),
+                      const Text('A familiar face builds trust.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF85858F))),
+                      const SizedBox(height: 8),
+                    ]),
+                  ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
                   _buildFormCard(),
                 ],
