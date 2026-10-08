@@ -894,18 +894,22 @@
 // }
 
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../models/equipment_model.dart';
+import '../services/equipment_service.dart';
 
 import 'add_equipment_screen.dart';
 import 'listing_details_screen.dart';
 import 'rental_requests_screen.dart';
-import '../../services/auth_service.dart';
 
 class MyListingsScreen extends StatelessWidget {
   const MyListingsScreen({super.key});
 
   static const Color primaryRed = Color(0xFFED1235);
+
+  static final EquipmentService _equipmentService =
+      EquipmentService();
 
   @override
   Widget build(BuildContext context) {
@@ -915,7 +919,9 @@ class MyListingsScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(
+              maxWidth: 420,
+            ),
             child: Column(
               children: [
                 // Header
@@ -973,12 +979,14 @@ class MyListingsScreen extends StatelessWidget {
                           backgroundColor: primaryRed,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(
+                          padding:
+                              const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 12,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius:
+                                BorderRadius.circular(20),
                           ),
                         ),
                       ),
@@ -991,22 +999,19 @@ class MyListingsScreen extends StatelessWidget {
                   color: Color(0xFFEAEAEA),
                 ),
 
-                // Firestore Equipment List
+                // Equipment List
                 Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('equipment')
-                        .where(
-  'providerId',
-  isEqualTo: AuthService.providerId,
-)
-                        .snapshots(),
+                  child: StreamBuilder<
+                      List<EquipmentModel>>(
+                    stream:
+                        _equipmentService.watchMyEquipment(),
                     builder: (context, snapshot) {
                       // Error
                       if (snapshot.hasError) {
                         return Center(
                           child: Padding(
-                            padding: const EdgeInsets.all(20),
+                            padding:
+                                const EdgeInsets.all(20),
                             child: Text(
                               'Something went wrong:\n${snapshot.error}',
                               textAlign: TextAlign.center,
@@ -1020,75 +1025,59 @@ class MyListingsScreen extends StatelessWidget {
 
                       // Loading
                       if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                              ConnectionState.waiting &&
+                          !snapshot.hasData) {
                         return const Center(
-                          child: CircularProgressIndicator(
+                          child:
+                              CircularProgressIndicator(
                             color: primaryRed,
                           ),
                         );
                       }
 
-                      final documents =
-                          snapshot.data?.docs ?? [];
+                      final equipmentList =
+                          snapshot.data ?? [];
 
                       // Empty
-                      if (documents.isEmpty) {
-                        return _buildEmptyState(context);
+                      if (equipmentList.isEmpty) {
+                        return _buildEmptyState(
+                          context,
+                        );
                       }
 
                       // Equipment list
                       return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(
+                        padding:
+                            const EdgeInsets.fromLTRB(
                           20,
                           22,
                           20,
                           25,
                         ),
-                        itemCount: documents.length,
-                        separatorBuilder: (context, index) {
-                          return const SizedBox(height: 14);
+                        itemCount: equipmentList.length,
+                        separatorBuilder:
+                            (context, index) {
+                          return const SizedBox(
+                            height: 14,
+                          );
                         },
-                        itemBuilder: (context, index) {
-                          final document = documents[index];
-
-                          final data = document.data()
-                              as Map<String, dynamic>;
-
-                          final String name =
-                              data['name']?.toString() ??
-                                  'Equipment';
-
-                          final String category =
-                              data['category']?.toString() ??
-                                  '';
-
-                          final String condition =
-                              data['condition']?.toString() ??
-                                  '';
-
-                          final String status =
-                              data['status']?.toString() ??
-                                  'Available';
-
-                          final priceValue =
-                              data['pricePerDay'];
-
-                          final double price =
-                              priceValue is num
-                                  ? priceValue.toDouble()
-                                  : 0;
+                        itemBuilder:
+                            (context, index) {
+                          final equipment =
+                              equipmentList[index];
 
                           return _equipmentCard(
                             context: context,
-
-                            // Firestore document ID
-                            equipmentId: document.id,
-
-                            name: name,
-                            category: category,
-                            condition: condition,
-                            status: status,
-                            price: price,
+                            equipmentId:
+                                equipment.id,
+                            name: equipment.name,
+                            category:
+                                equipment.category,
+                            condition:
+                                equipment.condition,
+                            status: equipment.status,
+                            price:
+                                equipment.pricePerDay,
                           );
                         },
                       );
@@ -1109,10 +1098,7 @@ class MyListingsScreen extends StatelessWidget {
   // Equipment Card
   Widget _equipmentCard({
     required BuildContext context,
-
-    // Important
     required String equipmentId,
-
     required String name,
     required String category,
     required String condition,
@@ -1153,7 +1139,8 @@ class MyListingsScreen extends StatelessWidget {
               height: 65,
               decoration: BoxDecoration(
                 color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius:
+                    BorderRadius.circular(12),
               ),
               child: Icon(
                 _getCategoryIcon(category),
@@ -1173,7 +1160,8 @@ class MyListingsScreen extends StatelessWidget {
                   Text(
                     name,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow:
+                        TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -1217,7 +1205,8 @@ class MyListingsScreen extends StatelessWidget {
                   CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 6,
                   ),
@@ -1234,7 +1223,9 @@ class MyListingsScreen extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: available
-                          ? const Color(0xFF27944A)
+                          ? const Color(
+                              0xFF27944A,
+                            )
                           : primaryRed,
                     ),
                   ),
@@ -1431,8 +1422,7 @@ class MyListingsScreen extends StatelessWidget {
 }
 
 // Bottom Navigation Item
-class _BottomNavItem
-    extends StatelessWidget {
+class _BottomNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;

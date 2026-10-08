@@ -1,10 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/auth_service.dart';
+import '../services/withdrawal_service.dart';
 
 class AddBankAccountScreen extends StatefulWidget {
-  const AddBankAccountScreen({super.key});
+  const AddBankAccountScreen({
+    super.key,
+  });
 
   @override
   State<AddBankAccountScreen> createState() =>
@@ -13,15 +14,22 @@ class AddBankAccountScreen extends StatefulWidget {
 
 class _AddBankAccountScreenState
     extends State<AddBankAccountScreen> {
-  static const Color primaryRed = Color(0xFFED1235);
+  static const Color primaryRed =
+      Color(0xFFED1235);
 
-  final TextEditingController accountHolderController =
+  final WithdrawalService _withdrawalService =
+      WithdrawalService();
+
+  final TextEditingController
+      accountHolderController =
       TextEditingController();
 
-  final TextEditingController accountNumberController =
+  final TextEditingController
+      accountNumberController =
       TextEditingController();
 
-  final TextEditingController branchController =
+  final TextEditingController
+      branchController =
       TextEditingController();
 
   String? selectedBank;
@@ -93,19 +101,16 @@ class _AddBankAccountScreenState
     });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('bank_accounts')
-          .add({
-        'providerId': AuthService.providerId,
-        'bankName': selectedBank,
-        'accountHolderName': accountHolder,
-        'accountNumber': accountNumber,
-        'branch': branch,
-        'isDefault': true,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _withdrawalService.addBankAccount(
+        bankName: selectedBank!,
+        accountHolderName: accountHolder,
+        accountNumber: accountNumber,
+        branch: branch,
+      );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -118,7 +123,9 @@ class _AddBankAccountScreenState
 
       Navigator.pop(context);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -138,17 +145,24 @@ class _AddBankAccountScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8FA),
+      backgroundColor:
+          const Color(0xFFF8F8FA),
+
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
+            constraints:
+                const BoxConstraints(
               maxWidth: 420,
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
+            child:
+                SingleChildScrollView(
+              padding:
+                  const EdgeInsets.fromLTRB(
                 20,
                 18,
                 20,
@@ -158,17 +172,23 @@ class _AddBankAccountScreenState
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
+                  // Header
                   Row(
                     children: [
                       IconButton(
                         onPressed: () {
-                          Navigator.pop(context);
+                          Navigator.pop(
+                            context,
+                          );
                         },
-                        padding: EdgeInsets.zero,
+                        padding:
+                            EdgeInsets.zero,
                         constraints:
                             const BoxConstraints(),
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new,
+                        icon:
+                            const Icon(
+                          Icons
+                              .arrow_back_ios_new,
                           size: 22,
                         ),
                       ),
@@ -206,21 +226,25 @@ class _AddBankAccountScreenState
                   ),
 
                   DropdownButtonFormField<String>(
-                    value: selectedBank,
+                    initialValue: selectedBank,
                     hint: const Text(
                       'Select bank',
                     ),
                     items: banks.map(
                       (bank) {
-                        return DropdownMenuItem<String>(
+                        return DropdownMenuItem<
+                            String>(
                           value: bank,
-                          child: Text(bank),
+                          child: Text(
+                            bank,
+                          ),
                         );
                       },
                     ).toList(),
                     onChanged: (value) {
                       setState(() {
-                        selectedBank = value;
+                        selectedBank =
+                            value;
                       });
                     },
                     decoration:
@@ -319,9 +343,10 @@ class _AddBankAccountScreenState
                     height: 54,
                     child:
                         ElevatedButton(
-                      onPressed: isSaving
-                          ? null
-                          : _saveBankAccount,
+                      onPressed:
+                          isSaving
+                              ? null
+                              : _saveBankAccount,
                       style:
                           ElevatedButton
                               .styleFrom(
@@ -350,7 +375,8 @@ class _AddBankAccountScreenState
                               height: 22,
                               child:
                                   CircularProgressIndicator(
-                                strokeWidth: 2,
+                                strokeWidth:
+                                    2,
                                 color:
                                     Colors.white,
                               ),
@@ -359,7 +385,8 @@ class _AddBankAccountScreenState
                               'Save Bank Account',
                               style:
                                   TextStyle(
-                                fontSize: 16,
+                                fontSize:
+                                    16,
                                 fontWeight:
                                     FontWeight
                                         .w800,
@@ -391,7 +418,8 @@ class _AddBankAccountScreenState
       border: OutlineInputBorder(
         borderRadius:
             BorderRadius.circular(12),
-        borderSide: const BorderSide(
+        borderSide:
+            const BorderSide(
           color: Color(0xFFDDDDDD),
         ),
       ),
@@ -399,7 +427,8 @@ class _AddBankAccountScreenState
           OutlineInputBorder(
         borderRadius:
             BorderRadius.circular(12),
-        borderSide: const BorderSide(
+        borderSide:
+            const BorderSide(
           color: Color(0xFFDDDDDD),
         ),
       ),

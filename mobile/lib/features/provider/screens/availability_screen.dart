@@ -549,8 +549,9 @@
 // }
 
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../services/equipment_service.dart';
 
 class AvailabilityScreen extends StatefulWidget {
   final String equipmentId;
@@ -569,6 +570,9 @@ class _AvailabilityScreenState
     extends State<AvailabilityScreen> {
   static const Color primaryRed = Color(0xFFED1235);
   static const Color textGrey = Color(0xFF8A8A8A);
+
+  final EquipmentService _equipmentService =
+      EquipmentService();
 
   late DateTime currentMonth;
 
@@ -595,41 +599,40 @@ class _AvailabilityScreenState
 
   Future<void> _loadAvailability() async {
     try {
-      final document = await FirebaseFirestore.instance
-          .collection('equipment')
-          .doc(widget.equipmentId)
-          .get();
+      final equipment =
+          await _equipmentService.getEquipment(
+        widget.equipmentId,
+      );
 
-      if (!document.exists) {
-        if (!mounted) return;
+      if (!mounted) return;
 
+      if (equipment == null) {
         setState(() {
           isLoading = false;
         });
 
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Equipment not found',
+            ),
+          ),
+        );
+
+        Navigator.pop(context);
         return;
       }
 
-      final data =
-          document.data() as Map<String, dynamic>;
-
-      final savedDates =
-          data['unavailableDates'];
-
       setState(() {
-        equipmentName =
-            data['name']?.toString() ??
-                'Equipment';
+        equipmentName = equipment.name.isEmpty
+            ? 'Equipment'
+            : equipment.name;
 
-        if (savedDates is List) {
-          unavailableDates.clear();
+        unavailableDates.clear();
 
-          unavailableDates.addAll(
-            savedDates.map(
-              (date) => date.toString(),
-            ),
-          );
-        }
+        unavailableDates.addAll(
+          equipment.unavailableDates,
+        );
 
         isLoading = false;
       });
@@ -656,22 +659,12 @@ class _AvailabilityScreenState
     });
 
     try {
-      final dates =
-          unavailableDates.toList()
-            ..sort();
+      final dates = unavailableDates.toList()
+        ..sort();
 
-      await FirebaseFirestore.instance
-          .collection('equipment')
-          .doc(widget.equipmentId)
-          .set(
-        {
-          'unavailableDates': dates,
-          'availabilityUpdatedAt':
-              FieldValue.serverTimestamp(),
-        },
-        SetOptions(
-          merge: true,
-        ),
+      await _equipmentService.saveUnavailableDates(
+        equipmentId: widget.equipmentId,
+        unavailableDates: dates,
       );
 
       if (!mounted) return;
@@ -703,20 +696,21 @@ class _AvailabilityScreenState
   }
 
   String _dateKey(DateTime date) {
-    final year =
-        date.year.toString();
+    final year = date.year.toString();
 
-    final month =
-        date.month.toString().padLeft(
-              2,
-              '0',
-            );
+    final month = date.month
+        .toString()
+        .padLeft(
+          2,
+          '0',
+        );
 
-    final day =
-        date.day.toString().padLeft(
-              2,
-              '0',
-            );
+    final day = date.day
+        .toString()
+        .padLeft(
+          2,
+          '0',
+        );
 
     return '$year-$month-$day';
   }
@@ -810,12 +804,10 @@ class _AvailabilityScreenState
 
   @override
   Widget build(BuildContext context) {
-    final dates =
-        _calendarDates();
+    final dates = _calendarDates();
 
     return Scaffold(
       backgroundColor: Colors.white,
-
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -861,11 +853,9 @@ class _AvailabilityScreenState
                                 size: 22,
                               ),
                             ),
-
                             const SizedBox(
                               width: 14,
                             ),
-
                             const Text(
                               'Availability',
                               style: TextStyle(
@@ -934,11 +924,9 @@ class _AvailabilityScreenState
                                   size: 27,
                                 ),
                               ),
-
                               const SizedBox(
                                 width: 14,
                               ),
-
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment:
@@ -956,11 +944,9 @@ class _AvailabilityScreenState
                                                 .w800,
                                       ),
                                     ),
-
                                     const SizedBox(
                                       height: 4,
                                     ),
-
                                     const Text(
                                       'Tap dates to block or unblock',
                                       style:
@@ -1029,7 +1015,6 @@ class _AvailabilityScreenState
                                       size: 30,
                                     ),
                                   ),
-
                                   Text(
                                     '${_monthName(currentMonth.month)} '
                                     '${currentMonth.year}',
@@ -1042,7 +1027,6 @@ class _AvailabilityScreenState
                                               .w800,
                                     ),
                                   ),
-
                                   IconButton(
                                     onPressed:
                                         _nextMonth,
@@ -1118,8 +1102,7 @@ class _AvailabilityScreenState
                                   index,
                                 ) {
                                   return _buildDateCell(
-                                    dates[
-                                        index],
+                                    dates[index],
                                   );
                                 },
                               ),
@@ -1138,11 +1121,9 @@ class _AvailabilityScreenState
                                     color:
                                         primaryRed,
                                   ),
-
                                   SizedBox(
                                     width: 7,
                                   ),
-
                                   Text(
                                     'Unavailable',
                                     style:
@@ -1151,21 +1132,18 @@ class _AvailabilityScreenState
                                           12,
                                     ),
                                   ),
-
                                   SizedBox(
                                     width: 25,
                                   ),
-
                                   _LegendDot(
-                                    color: Color(
+                                    color:
+                                        Color(
                                       0xFFEAEAEA,
                                     ),
                                   ),
-
                                   SizedBox(
                                     width: 7,
                                   ),
-
                                   Text(
                                     'Available',
                                     style:
@@ -1216,17 +1194,16 @@ class _AvailabilityScreenState
                                   0xFFC48700,
                                 ),
                               ),
-
                               SizedBox(
                                 width: 10,
                               ),
-
                               Expanded(
                                 child: Text(
                                   'Red dates are blocked and customers will not be able to rent the item on those dates.',
                                   style:
                                       TextStyle(
-                                    fontSize: 12,
+                                    fontSize:
+                                        12,
                                     color:
                                         Color(
                                       0xFF765500,
@@ -1282,8 +1259,9 @@ class _AvailabilityScreenState
                                         CircularProgressIndicator(
                                       strokeWidth:
                                           2.5,
-                                      color: Colors
-                                          .white,
+                                      color:
+                                          Colors
+                                              .white,
                                     ),
                                   )
                                 : const Text(
@@ -1321,21 +1299,17 @@ class _AvailabilityScreenState
         _isUnavailable(date);
 
     return InkWell(
-      onTap:
-          current
-              ? () =>
-                  _toggleDate(date)
-              : null,
+      onTap: current
+          ? () => _toggleDate(date)
+          : null,
       borderRadius:
           BorderRadius.circular(30),
       child: Center(
         child: Container(
           width: 35,
           height: 35,
-          alignment:
-              Alignment.center,
-          decoration:
-              BoxDecoration(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: unavailable
                 ? primaryRed
@@ -1363,8 +1337,7 @@ class _AvailabilityScreenState
   }
 }
 
-class _WeekDay
-    extends StatelessWidget {
+class _WeekDay extends StatelessWidget {
   final String text;
 
   const _WeekDay(
@@ -1395,8 +1368,7 @@ class _WeekDay
   }
 }
 
-class _LegendDot
-    extends StatelessWidget {
+class _LegendDot extends StatelessWidget {
   final Color color;
 
   const _LegendDot({

@@ -403,10 +403,10 @@
 //   }
 // }
 
-
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../models/rental_request_model.dart';
+import '../services/rental_request_service.dart';
 
 class PickupReturnScreen extends StatelessWidget {
   final String requestId;
@@ -416,39 +416,50 @@ class PickupReturnScreen extends StatelessWidget {
     required this.requestId,
   });
 
-  static const Color primaryRed = Color(0xFFED1235);
+  static const Color primaryRed =
+      Color(0xFFED1235);
+
+  static final RentalRequestService
+      _requestService =
+      RentalRequestService();
 
   Future<void> _confirmHandover(
     BuildContext context,
   ) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('rental_requests')
-          .doc(requestId)
-          .update({
-        'handoverConfirmed': true,
-        'handoverConfirmedAt':
-            FieldValue.serverTimestamp(),
-        'status': 'active',
-      });
+      await _requestService.confirmHandover(
+        requestId,
+      );
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Handover confirmed successfully',
           ),
+          backgroundColor:
+              Color(0xFF27944A),
         ),
       );
     } catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
+
+      String message = error.toString();
+
+      message = message.replaceFirst(
+        'Exception: ',
+        '',
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to confirm handover: $error',
-          ),
+          content: Text(message),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -459,62 +470,63 @@ class PickupReturnScreen extends StatelessWidget {
     bool returnedWithoutDamage,
     bool depositRefunded,
   ) async {
-    if (!returnedWithoutDamage ||
-        !depositRefunded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please complete both condition checks.',
-          ),
-        ),
-      );
-      return;
-    }
-
     try {
-      await FirebaseFirestore.instance
-          .collection('rental_requests')
-          .doc(requestId)
-          .update({
-        'returnedWithoutDamage':
+      await _requestService.confirmReturn(
+        requestId: requestId,
+        returnedWithoutDamage:
             returnedWithoutDamage,
-        'depositRefunded': depositRefunded,
-        'returnConfirmed': true,
-        'returnConfirmedAt':
-            FieldValue.serverTimestamp(),
-        'status': 'completed',
-      });
+        depositRefunded:
+            depositRefunded,
+      );
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Return confirmed successfully',
           ),
+          backgroundColor:
+              Color(0xFF27944A),
         ),
       );
     } catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
+
+      String message = error.toString();
+
+      message = message.replaceFirst(
+        'Exception: ',
+        '',
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to confirm return: $error',
-          ),
+          content: Text(message),
+          backgroundColor: Colors.red,
         ),
       );
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('rental_requests')
-          .doc(requestId)
-          .snapshots(),
-      builder: (context, snapshot) {
+  Widget build(
+    BuildContext context,
+  ) {
+    return StreamBuilder<
+        RentalRequestModel?>(
+      stream: _requestService
+          .watchRentalRequest(
+        requestId,
+      ),
+      builder: (
+        context,
+        snapshot,
+      ) {
         if (snapshot.hasError) {
           return const Scaffold(
             body: Center(
@@ -526,18 +538,22 @@ class PickupReturnScreen extends StatelessWidget {
         }
 
         if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+                ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(
+              child:
+                  CircularProgressIndicator(
                 color: primaryRed,
               ),
             ),
           );
         }
 
-        if (!snapshot.hasData ||
-            !snapshot.data!.exists) {
+        final request =
+            snapshot.data;
+
+        if (request == null) {
           return const Scaffold(
             body: Center(
               child: Text(
@@ -547,36 +563,25 @@ class PickupReturnScreen extends StatelessWidget {
           );
         }
 
-        final data = snapshot.data!.data()
-            as Map<String, dynamic>;
-
-        final playerName =
-            data['playerName']?.toString() ??
-                'Player';
-
-        final equipmentName =
-            data['equipmentName']?.toString() ??
-                'Equipment';
-
-        final pickupLocation =
-            data['pickupLocation']?.toString() ??
-                'Provider location';
-
-        final status =
-            data['status']?.toString() ??
-                'accepted';
-
-        final handoverConfirmed =
-            data['handoverConfirmed'] == true;
-
         return _PickupReturnContent(
-          playerName: playerName,
-          equipmentName: equipmentName,
-          pickupLocation: pickupLocation,
-          status: status,
-          handoverConfirmed: handoverConfirmed,
+          playerName:
+              request.playerName,
+          equipmentName:
+              request.equipmentName,
+          pickupLocation:
+              request.pickupLocation,
+          status:
+              request.status,
+          handoverConfirmed:
+              request.handoverConfirmed,
+          initialReturnedWithoutDamage:
+              request.returnedWithoutDamage,
+          initialDepositRefunded:
+              request.depositRefunded,
           onConfirmHandover: () {
-            _confirmHandover(context);
+            _confirmHandover(
+              context,
+            );
           },
           onConfirmReturn: (
             returnedWithoutDamage,
@@ -599,11 +604,20 @@ class _PickupReturnContent
   final String playerName;
   final String equipmentName;
   final String pickupLocation;
+
   final String status;
+
   final bool handoverConfirmed;
+
+  final bool initialReturnedWithoutDamage;
+  final bool initialDepositRefunded;
+
   final VoidCallback onConfirmHandover;
-  final void Function(bool, bool)
-      onConfirmReturn;
+
+  final void Function(
+    bool,
+    bool,
+  ) onConfirmReturn;
 
   const _PickupReturnContent({
     required this.playerName,
@@ -611,13 +625,16 @@ class _PickupReturnContent
     required this.pickupLocation,
     required this.status,
     required this.handoverConfirmed,
+    required this.initialReturnedWithoutDamage,
+    required this.initialDepositRefunded,
     required this.onConfirmHandover,
     required this.onConfirmReturn,
   });
 
   @override
-  State<_PickupReturnContent> createState() =>
-      _PickupReturnContentState();
+  State<_PickupReturnContent>
+      createState() =>
+          _PickupReturnContentState();
 }
 
 class _PickupReturnContentState
@@ -625,23 +642,68 @@ class _PickupReturnContentState
   static const Color primaryRed =
       Color(0xFFED1235);
 
-  bool returnedWithoutDamage = false;
-  bool depositRefunded = false;
+  late bool returnedWithoutDamage;
+  late bool depositRefunded;
 
   @override
-  Widget build(BuildContext context) {
-    final completed =
-        widget.status == 'completed';
+  void initState() {
+    super.initState();
+
+    returnedWithoutDamage =
+        widget.initialReturnedWithoutDamage;
+
+    depositRefunded =
+        widget.initialDepositRefunded;
+  }
+
+  @override
+  void didUpdateWidget(
+    covariant _PickupReturnContent oldWidget,
+  ) {
+    super.didUpdateWidget(
+      oldWidget,
+    );
+
+    if (oldWidget.initialReturnedWithoutDamage !=
+        widget.initialReturnedWithoutDamage) {
+      returnedWithoutDamage =
+          widget.initialReturnedWithoutDamage;
+    }
+
+    if (oldWidget.initialDepositRefunded !=
+        widget.initialDepositRefunded) {
+      depositRefunded =
+          widget.initialDepositRefunded;
+    }
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final bool completed =
+        widget.status ==
+            'completed';
+
+    final bool canConfirmReturn =
+        widget.handoverConfirmed &&
+        !completed;
 
     return Scaffold(
       backgroundColor: Colors.white,
+
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints:
-                const BoxConstraints(maxWidth: 420),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
+                const BoxConstraints(
+              maxWidth: 420,
+            ),
+            child:
+                SingleChildScrollView(
+              padding:
+                  const EdgeInsets
+                      .fromLTRB(
                 20,
                 18,
                 20,
@@ -649,45 +711,71 @@ class _PickupReturnContentState
               ),
               child: Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    CrossAxisAlignment
+                        .start,
                 children: [
+                  // HEADER
                   Row(
                     children: [
                       IconButton(
                         onPressed: () {
-                          Navigator.pop(context);
+                          Navigator.pop(
+                            context,
+                          );
                         },
-                        padding: EdgeInsets.zero,
+                        padding:
+                            EdgeInsets.zero,
                         constraints:
                             const BoxConstraints(),
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new,
+                        icon:
+                            const Icon(
+                          Icons
+                              .arrow_back_ios_new,
                           size: 22,
                         ),
                       ),
 
-                      const SizedBox(width: 14),
+                      const SizedBox(
+                        width: 14,
+                      ),
 
                       const Text(
                         'Pickup & Return',
-                        style: TextStyle(
+                        style:
+                            TextStyle(
                           fontSize: 22,
-                          fontWeight: FontWeight.w800,
+                          fontWeight:
+                              FontWeight
+                                  .w800,
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(
+                    height: 28,
+                  ),
 
+                  // USER / BOOKING CARD
                   Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
+                    padding:
+                        const EdgeInsets
+                            .all(
+                      14,
+                    ),
+                    decoration:
+                        BoxDecoration(
                       borderRadius:
-                          BorderRadius.circular(14),
-                      border: Border.all(
+                          BorderRadius
+                              .circular(
+                        14,
+                      ),
+                      border:
+                          Border.all(
                         color:
-                            const Color(0xFFDDDDDD),
+                            const Color(
+                          0xFFDDDDDD,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -699,30 +787,39 @@ class _PickupReturnContentState
                           ),
                         ),
 
-                        const SizedBox(width: 14),
+                        const SizedBox(
+                          width: 14,
+                        ),
 
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                             children: [
                               Text(
-                                widget.playerName,
+                                widget
+                                    .playerName,
                                 style:
                                     const TextStyle(
-                                  fontSize: 17,
+                                  fontSize:
+                                      17,
                                   fontWeight:
-                                      FontWeight.w800,
+                                      FontWeight
+                                          .w800,
                                 ),
                               ),
+
                               const SizedBox(
                                 height: 4,
                               ),
+
                               Text(
                                 'Booking: ${widget.equipmentName}',
                                 style:
                                     const TextStyle(
-                                  color: Colors.grey,
+                                  color:
+                                      Colors.grey,
                                 ),
                               ),
                             ],
@@ -731,27 +828,40 @@ class _PickupReturnContentState
 
                         Container(
                           padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 12,
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal:
+                                12,
                             vertical: 6,
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFFFEEF1,
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                _statusBackground(
+                              widget
+                                  .status,
                             ),
                             borderRadius:
-                                BorderRadius.circular(
+                                BorderRadius
+                                    .circular(
                               20,
                             ),
                           ),
                           child: Text(
                             widget.status
                                 .toUpperCase(),
-                            style: const TextStyle(
-                              color: primaryRed,
-                              fontSize: 11,
+                            style:
+                                TextStyle(
+                              color:
+                                  _statusColor(
+                                widget
+                                    .status,
+                              ),
+                              fontSize:
+                                  11,
                               fontWeight:
-                                  FontWeight.w700,
+                                  FontWeight
+                                      .w700,
                             ),
                           ),
                         ),
@@ -759,72 +869,106 @@ class _PickupReturnContentState
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(
+                    height: 24,
+                  ),
 
+                  // HANDOVER
                   const Text(
                     '1. Handover (Pickup)',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      fontWeight:
+                          FontWeight.w800,
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                    height: 12,
+                  ),
 
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
+                    width:
+                        double.infinity,
+                    padding:
+                        const EdgeInsets
+                            .all(
+                      15,
+                    ),
+                    decoration:
+                        BoxDecoration(
                       borderRadius:
-                          BorderRadius.circular(14),
-                      border: Border.all(
+                          BorderRadius
+                              .circular(
+                        14,
+                      ),
+                      border:
+                          Border.all(
                         color:
-                            const Color(0xFFDDDDDD),
+                            const Color(
+                          0xFFDDDDDD,
+                        ),
                       ),
                     ),
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         const Text(
                           'Pickup Location',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.grey,
+                            fontSize:
+                                12,
                           ),
                         ),
 
-                        const SizedBox(height: 5),
+                        const SizedBox(
+                          height: 5,
+                        ),
 
                         Text(
-                          widget.pickupLocation,
-                          style: const TextStyle(
+                          widget
+                              .pickupLocation,
+                          style:
+                              const TextStyle(
                             fontWeight:
-                                FontWeight.w800,
+                                FontWeight
+                                    .w800,
                           ),
                         ),
 
-                        const SizedBox(height: 18),
+                        const SizedBox(
+                          height: 18,
+                        ),
 
                         SizedBox(
-                          width: double.infinity,
+                          width:
+                              double.infinity,
                           height: 50,
-                          child: ElevatedButton(
+                          child:
+                              ElevatedButton(
                             onPressed:
-                                widget.handoverConfirmed ||
+                                widget
+                                            .handoverConfirmed ||
                                         completed
                                     ? null
                                     : widget
                                         .onConfirmHandover,
                             style:
-                                ElevatedButton.styleFrom(
+                                ElevatedButton
+                                    .styleFrom(
                               backgroundColor:
                                   primaryRed,
                               foregroundColor:
                                   Colors.white,
                             ),
                             child: Text(
-                              widget.handoverConfirmed ||
+                              widget
+                                          .handoverConfirmed ||
                                       completed
                                   ? 'Handover Confirmed'
                                   : 'Confirm Handover',
@@ -835,38 +979,59 @@ class _PickupReturnContentState
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(
+                    height: 24,
+                  ),
 
+                  // RETURN
                   const Text(
                     '2. Receive (Return)',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      fontWeight:
+                          FontWeight.w800,
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                    height: 12,
+                  ),
 
                   Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
+                    padding:
+                        const EdgeInsets
+                            .all(
+                      15,
+                    ),
+                    decoration:
+                        BoxDecoration(
                       borderRadius:
-                          BorderRadius.circular(14),
-                      border: Border.all(
+                          BorderRadius
+                              .circular(
+                        14,
+                      ),
+                      border:
+                          Border.all(
                         color:
-                            const Color(0xFFDDDDDD),
+                            const Color(
+                          0xFFDDDDDD,
+                        ),
                       ),
                     ),
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         const Text(
                           'Condition Check',
-                          style: TextStyle(
-                            fontSize: 15,
+                          style:
+                              TextStyle(
+                            fontSize:
+                                15,
                             fontWeight:
-                                FontWeight.w800,
+                                FontWeight
+                                    .w800,
                           ),
                         ),
 
@@ -875,56 +1040,75 @@ class _PickupReturnContentState
                               returnedWithoutDamage,
                           contentPadding:
                               EdgeInsets.zero,
-                          activeColor: primaryRed,
-                          title: const Text(
+                          activeColor:
+                              primaryRed,
+                          title:
+                              const Text(
                             'Item returned without damage',
                           ),
                           onChanged:
-                              completed
-                                  ? null
-                                  : (value) {
-                                      setState(() {
-                                        returnedWithoutDamage =
-                                            value ??
-                                                false;
-                                      });
-                                    },
+                              canConfirmReturn
+                                  ? (
+                                      value,
+                                    ) {
+                                      setState(
+                                        () {
+                                          returnedWithoutDamage =
+                                              value ??
+                                                  false;
+                                        },
+                                      );
+                                    }
+                                  : null,
                         ),
 
                         CheckboxListTile(
-                          value: depositRefunded,
+                          value:
+                              depositRefunded,
                           contentPadding:
                               EdgeInsets.zero,
-                          activeColor: primaryRed,
-                          title: const Text(
+                          activeColor:
+                              primaryRed,
+                          title:
+                              const Text(
                             'Security deposit refunded',
                           ),
                           onChanged:
-                              completed
-                                  ? null
-                                  : (value) {
-                                      setState(() {
-                                        depositRefunded =
-                                            value ??
-                                                false;
-                                      });
-                                    },
+                              canConfirmReturn
+                                  ? (
+                                      value,
+                                    ) {
+                                      setState(
+                                        () {
+                                          depositRefunded =
+                                              value ??
+                                                  false;
+                                        },
+                                      );
+                                    }
+                                  : null,
                         ),
 
-                        const SizedBox(height: 10),
+                        const SizedBox(
+                          height: 10,
+                        ),
 
                         SizedBox(
-                          width: double.infinity,
+                          width:
+                              double.infinity,
                           height: 50,
-                          child: OutlinedButton(
-                            onPressed: completed
-                                ? null
-                                : () {
-                                    widget.onConfirmReturn(
-                                      returnedWithoutDamage,
-                                      depositRefunded,
-                                    );
-                                  },
+                          child:
+                              OutlinedButton(
+                            onPressed:
+                                canConfirmReturn
+                                    ? () {
+                                        widget
+                                            .onConfirmReturn(
+                                          returnedWithoutDamage,
+                                          depositRefunded,
+                                        );
+                                      }
+                                    : null,
                             child: Text(
                               completed
                                   ? 'Return Completed'
@@ -942,5 +1126,47 @@ class _PickupReturnContentState
         ),
       ),
     );
+  }
+
+  Color _statusBackground(
+    String status,
+  ) {
+    switch (status) {
+      case 'active':
+      case 'completed':
+        return const Color(
+          0xFFEAF8EF,
+        );
+
+      case 'rejected':
+        return const Color(
+          0xFFFFEEF1,
+        );
+
+      default:
+        return const Color(
+          0xFFFFF4DD,
+        );
+    }
+  }
+
+  Color _statusColor(
+    String status,
+  ) {
+    switch (status) {
+      case 'active':
+      case 'completed':
+        return const Color(
+          0xFF27944A,
+        );
+
+      case 'rejected':
+        return primaryRed;
+
+      default:
+        return const Color(
+          0xFFC47A00,
+        );
+    }
   }
 }
