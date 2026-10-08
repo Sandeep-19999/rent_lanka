@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/services/favourite_service.dart';
+import '../provider/public_provider_screen.dart';
 import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/exchange_request_screen.dart';
 import 'package:rent_lanka_mobile/features/booking_payment/models/equipment_model.dart' as booking;
 import 'package:rent_lanka_mobile/features/booking_payment/screens/booking/booking_screen.dart';
@@ -104,12 +105,6 @@ class _EquipmentDetailsScreenState
         content: Text(message),
         behavior: SnackBarBehavior.floating,
       ),
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    _showMessage(
-      '$feature will be connected during module integration.',
     );
   }
 
@@ -594,6 +589,24 @@ class _EquipmentDetailsScreenState
   }
 
   Widget _buildRating(Map<String, dynamic> equipment) {
+    final id = _text(equipment, 'id');
+    if (id.isEmpty) return _ratingRow(equipment);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('reviews')
+          .where('equipmentId', isEqualTo: id).snapshots(),
+      builder: (context, snapshot) {
+        final ratings = snapshot.data?.docs.map((doc) => doc.data()['rating'])
+            .whereType<num>().where((value) => value >= 1 && value <= 5).toList() ?? [];
+        return _ratingRow({ ...equipment,
+          'rating': ratings.isEmpty ? 'N/A' :
+              (ratings.fold<double>(0, (total, value) => total + value) / ratings.length).toStringAsFixed(1),
+          'reviews': ratings.length.toString(),
+        });
+      },
+    );
+  }
+
+  Widget _ratingRow(Map<String, dynamic> equipment) {
     final rating = _text(equipment, 'rating', 'N/A');
 
     return Row(
@@ -658,13 +671,13 @@ class _EquipmentDetailsScreenState
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _providerTile('Equipment Provider');
+          return _providerTile('Equipment Provider', providerId: providerId);
         }
 
         final userData = snapshot.data?.data();
 
         if (userData == null) {
-          return _providerTile('Equipment Provider');
+          return _providerTile('Equipment Provider', providerId: providerId);
         }
 
         String providerName = _text(userData, 'name');
@@ -681,14 +694,20 @@ class _EquipmentDetailsScreenState
           providerName = 'Equipment Provider';
         }
 
-        return _providerTile(providerName);
+        return _providerTile(providerName, providerId: providerId);
       },
     );
   }
 
-  Widget _providerTile(String providerName) {
+  Widget _providerTile(String providerName, {String providerId = ''}) {
     return InkWell(
-      onTap: () => _showComingSoon('Provider profile'),
+      onTap: providerId.isEmpty
+          ? () => _showMessage('Provider information unavailable.')
+          : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PublicProviderScreen(providerId: providerId),
+                ),
+              ),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(13),

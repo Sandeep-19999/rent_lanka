@@ -1,3 +1,6 @@
+import '../../../exchange_messaging_profile/services/chat_service.dart';
+import '../../../exchange_messaging_profile/screens/chat_screen.dart';
+import '../../../exchange_messaging_profile/screens/rate_review_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/booking_model.dart';
@@ -18,6 +21,23 @@ class BookingDetailsScreen extends StatelessWidget {
     required this.bookingId,
     this.onMessageProvider,
   });
+
+  Future<void> _messageProvider(BuildContext context, Booking booking) async {
+    try {
+      final chatId = await ChatService().ensureContextChat(
+        providerId: booking.providerId, playerId: booking.playerId,
+        playerName: booking.playerName, equipmentId: booking.equipmentId,
+        equipmentName: booking.equipmentName, rentalRequestId: booking.id,
+      );
+      if (!context.mounted) return;
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(
+        chatId: chatId, chatName: booking.providerName, otherUserId: booking.providerId,
+        equipmentName: booking.equipmentName, contextType: 'rental_request',
+      )));
+    } catch (error) {
+      if (context.mounted) showMessage(context, error.toString(), error: true);
+    }
+  }
 
   Future<void> _cancel(BuildContext context, Booking booking) async {
     final reasonController = TextEditingController();
@@ -107,11 +127,18 @@ class BookingDetailsScreen extends StatelessWidget {
         }
 
         final actions = <Widget>[
-          if (onMessageProvider != null)
-            SecondaryButton(
+          SecondaryButton(
               label: 'Message Provider',
               icon: Icons.chat_bubble_outline,
-              onPressed: () => onMessageProvider!(booking),
+              onPressed: () => onMessageProvider != null
+                  ? onMessageProvider!(booking) : _messageProvider(context, booking),
+            ),
+          if (booking.status == BookingStatus.completed)
+            SecondaryButton(
+              label: 'Rate & Review', icon: Icons.star_outline,
+              onPressed: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => RateReviewScreen(initialBookingId: booking.id),
+              )),
             ),
           if (booking.canCancel)
             SecondaryButton(

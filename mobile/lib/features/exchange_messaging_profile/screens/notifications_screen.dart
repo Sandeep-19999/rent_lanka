@@ -1,3 +1,10 @@
+import '../../../navigation/notification_destination.dart';
+import '../../booking_payment/screens/booking/my_bookings_screen.dart';
+import '../../provider/screens/request_details_screen.dart';
+import '../../booking_payment/screens/booking/booking_details_screen.dart';
+import 'transaction_history_screen.dart';
+import 'exchange_status_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/chat_context.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -268,11 +275,7 @@ class _NotificationsScreenState
                 .trim() ??
             'general';
 
-    final String referenceId =
-        data['referenceId']
-                ?.toString()
-                .trim() ??
-            '';
+    final String referenceId = notificationReference(data);
 
     final bool isRead =
         data['isRead'] == true;
@@ -508,11 +511,7 @@ class _NotificationsScreenState
                 .trim() ??
             'general';
 
-    final String referenceId =
-        data['referenceId']
-                ?.toString()
-                .trim() ??
-            '';
+    final String referenceId = notificationReference(data);
 
     try {
       if (!isRead) {
@@ -524,8 +523,8 @@ class _NotificationsScreenState
 
       if (!mounted) return;
 
-      switch (type) {
-        case 'message':
+      switch (notificationDestination(type, referenceId)) {
+        case NotificationDestination.chat:
           if (referenceId.isNotEmpty) {
             await _openChat(
               referenceId,
@@ -533,41 +532,49 @@ class _NotificationsScreenState
           }
           break;
 
-        case 'review':
+        case NotificationDestination.review:
           await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) =>
-                  const RateReviewScreen(),
+                  RateReviewScreen(initialBookingId: referenceId.isEmpty ? null : referenceId),
             ),
           );
           break;
 
-        case 'exchange':
-  if (referenceId.isNotEmpty) {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => IncomingExchangeRequestScreen(
-          exchangeRequestId: referenceId,
-        ),
-      ),
-    );
-  }
-  break;
-        case 'booking':
-          _showFeatureMessage(
-            'Open My Bookings to view this booking update.',
-          );
+        case NotificationDestination.exchange:
+          if (referenceId.isNotEmpty) {
+            final doc = await FirebaseFirestore.instance.collection('exchange_requests')
+                .doc(referenceId).get();
+            if (!mounted) return;
+            final sender = doc.data()?['senderId'];
+            await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              sender == FirebaseAuth.instance.currentUser?.uid
+                ? ExchangeStatusScreen(exchangeRequestId: referenceId)
+                : IncomingExchangeRequestScreen(exchangeRequestId: referenceId),
+            ));
+          }
+          break;
+        case NotificationDestination.providerRequest:
+          if (referenceId.isNotEmpty) {
+            await Navigator.push(context,
+              MaterialPageRoute(builder: (_) => RequestDetailsScreen(requestId: referenceId)));
+          }
+          break;
+        case NotificationDestination.booking:
+          await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+            referenceId.isNotEmpty ? BookingDetailsScreen(bookingId: referenceId)
+              : const TransactionHistoryScreen(),
+          ));
           break;
 
-        case 'payment':
-          _showFeatureMessage(
-            'Open your booking or transaction history to view this payment update.',
-          );
+        case NotificationDestination.myBookings:
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const MyBookingsScreen()));
           break;
-
-        default:
+        case NotificationDestination.transactions:
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()));
+          break;
+        case NotificationDestination.none:
           break;
       }
     } catch (error) {
@@ -803,21 +810,8 @@ class _NotificationsScreenState
     );
   }
 
- bool _canOpen(
-  String type,
-  String referenceId,
-) {
-  if (type == 'review') {
-    return true;
-  }
-
-  if ((type == 'message' || type == 'exchange') &&
-      referenceId.isNotEmpty) {
-    return true;
-  }
-
-  return false;
-}
+  bool _canOpen(String type, String referenceId) =>
+      notificationDestination(type, referenceId) != NotificationDestination.none;
 
   static DateTime _getDate(
     dynamic value,

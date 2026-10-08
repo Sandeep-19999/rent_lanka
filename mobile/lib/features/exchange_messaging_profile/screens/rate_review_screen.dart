@@ -5,7 +5,8 @@ import '../services/completed_rental_service.dart';
 import '../services/review_service.dart';
 
 class RateReviewScreen extends StatefulWidget {
-  const RateReviewScreen({super.key});
+  final String? initialBookingId;
+  const RateReviewScreen({super.key, this.initialBookingId});
 
   @override
   State<RateReviewScreen> createState() => _RateReviewScreenState();
@@ -286,11 +287,14 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
     }
 
     if (_selectedEquipment == null) {
-      _selectedEquipment = rentals.first;
+      _selectedEquipment = rentals.firstWhere(
+        (rental) => rental.bookingId == widget.initialBookingId,
+        orElse: () => rentals.first,
+      );
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted &&
-            _loadedBookingId != rentals.first.bookingId) {
+            _loadedBookingId != _selectedEquipment!.bookingId) {
           _loadReview();
         }
       });

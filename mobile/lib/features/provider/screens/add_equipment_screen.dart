@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../services/equipment_service.dart';
@@ -35,6 +37,23 @@ class _AddEquipmentScreenState
   String? selectedCondition;
 
   bool isSaving = false;
+  Uint8List? _photo;
+  String _photoExtension = 'jpg';
+  final TextEditingController descriptionController = TextEditingController();
+
+  Future<void> _pickPhoto() async {
+    try {
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery,
+        maxWidth: 1600, maxHeight: 1600, imageQuality: 85);
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.length > 10 * 1024 * 1024) throw Exception('Please choose an image smaller than 10 MB.');
+      if (!mounted) return;
+      setState(() { _photo = bytes; _photoExtension = file.name.split('.').last.toLowerCase(); });
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
 
   final List<String> sports = [
     'Cricket',
@@ -55,6 +74,7 @@ class _AddEquipmentScreenState
 
   @override
   void dispose() {
+    descriptionController.dispose();
     nameController.dispose();
     brandController.dispose();
     sizeController.dispose();
@@ -103,6 +123,8 @@ class _AddEquipmentScreenState
         brand: brandController.text.trim(),
         size: sizeController.text.trim(),
         condition: selectedCondition!,
+        imageBytes: _photo, imageExtension: _photoExtension,
+        description: descriptionController.text,
         pricePerDay: double.parse(
           priceController.text.trim(),
         ),
@@ -318,47 +340,26 @@ class _AddEquipmentScreenState
 
                     const SizedBox(height: 24),
 
-                    Container(
-                      width: double.infinity,
-                      padding:
-                          const EdgeInsets.symmetric(
-                        vertical: 28,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8F8F8),
-                        borderRadius:
-                            BorderRadius.circular(14),
-                        border: Border.all(
-                          color: const Color(
-                            0xFFDADADA,
-                          ),
-                        ),
-                      ),
-                      child: const Column(
-                        children: [
-                          Icon(
-                            Icons.add_a_photo_outlined,
-                            size: 34,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Add Photos',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight:
-                                  FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: 5),
-                          Text(
-                            'Photo upload will be connected later',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
+                    TextFormField(
+                      controller: descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'Description (optional)'),
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: isSaving ? null : _pickPhoto,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(color: const Color(0xFFF8F8F8),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFDADADA))),
+                        child: _photo != null ? Image.memory(_photo!, height: 150, fit: BoxFit.contain)
+                            : const Column(children: [
+                              Icon(Icons.add_a_photo_outlined, size: 34, color: Colors.grey),
+                              SizedBox(height: 8), Text('Add Photos'),
+                              SizedBox(height: 5), Text('Choose an equipment image'),
+                            ]),
                       ),
                     ),
 

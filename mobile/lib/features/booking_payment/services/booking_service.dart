@@ -1,3 +1,4 @@
+import 'booking_lifecycle_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/booking_model.dart';
@@ -187,6 +188,10 @@ class BookingService {
     String? bank,
   }) async {
     final playerId = _requirePlayerId();
+    final profile = (await _db.collection('users').doc(playerId).get()).data() ?? {};
+    final savedName = profile['name']?.toString().trim() ?? '';
+    final playerName = savedName.isNotEmpty ? savedName : AuthService.playerName;
+    if (playerName.isEmpty) throw const BookingException('Please add your name in Edit Profile before booking.');
     final equipmentDoc = await _equipment.doc(draft.equipment.id).get();
     if (!equipmentDoc.exists) {
       throw const BookingException('This equipment is no longer listed.');
@@ -251,8 +256,25 @@ class BookingService {
       AppDates.key(latestDraft.endDate),
     );
 
-    final batch = _db.batch();
-
+    await _db.runTransaction((batch) async {
+    final lockedEquipment = await batch.get(_equipment.doc(equipment.id));
+    final listing = lockedEquipment.data();
+    if (listing == null || listing['isAvailable'] == false ||
+        listing['status']?.toString().trim().toLowerCase() != 'available') {
+      throw const BookingException('Equipment is no longer available.');
+    }
+    if (listing['providerId'] != equipment.providerId ||
+        listing['pricePerDay'] != equipment.pricePerDay ||
+        listing['securityDeposit'] != equipment.securityDeposit) {
+      throw const BookingException('The listing changed. Please restart booking.');
+    }
+    final reserved = AppDates.daysInRange(latestDraft.startDate, latestDraft.endDate)
+        .map(AppDates.key).toList();
+    if (reserved.any(ReservationDates.effective(listing).contains)) {
+      throw const BookingException('These dates were just reserved. Please choose other dates.');
+    }
+    batch.update(lockedEquipment.reference,
+        ReservationDates.change(listing, bookingRef.id, reserved));
     batch.set(bookingRef, {
       'bookingReference': reference,
       'equipmentId': equipment.id,
@@ -261,7 +283,7 @@ class BookingService {
       'providerId': equipment.providerId,
       'providerName': equipment.providerName,
       'playerId': playerId,
-      'playerName': AuthService.playerName,
+      'playerName': playerName,
       'verifiedUser': AuthService.isEmailVerified,
       'startDate': AppDates.key(latestDraft.startDate),
       'endDate': AppDates.key(latestDraft.endDate),
@@ -342,14 +364,14 @@ class BookingService {
       bookingId: bookingRef.id,
       type: 'rental_request',
       title: 'New rental request',
-      message: '${AuthService.playerName} wants to rent ${equipment.name} '
+      message: '$playerName wants to rent ${equipment.name} '
           'for $period.',
     );
 
     if (_requirePlayerId() != playerId) {
       throw const BookingException('Your login changed. Please start booking again.');
     }
-    await batch.commit();
+    });
     return bookingRef.id;
   }
 
@@ -388,95 +410,18 @@ class BookingService {
 
   /// Cancels a pending/accepted booking and refunds a prepaid amount.
   Future<void> cancelBooking(String bookingId, {String reason = ''}) async {
-    final playerId = _requirePlayerId();
-    final bookingRef = _bookings.doc(bookingId);
-
-    final booking = await _db.runTransaction<Booking>((transaction) async {
-      final doc = await transaction.get(bookingRef);
-      if (!doc.exists) throw const BookingException('Booking not found.');
-
-      final booking = Booking.fromDoc(doc);
-      if (booking.playerId != playerId) {
-        throw const BookingException('You can only cancel your own bookings.');
-      }
-      if (!booking.canCancel) {
-        throw const BookingException(
-            'This booking can no longer be cancelled.');
-      }
-
-      final refund = booking.paymentStatus == PaymentStatus.paid;
-      transaction.update(bookingRef, {
-        'status': BookingStatus.cancelled,
-        'cancelReason': reason.trim(),
-        'cancelledAt': FieldValue.serverTimestamp(),
-        'statusUpdatedAt': FieldValue.serverTimestamp(),
-        if (refund) 'paymentStatus': PaymentStatus.refunded,
-      });
-      return booking;
-    });
-
-    final batch = _db.batch();
-
-    _setSlotStatus(batch, bookingId, BookingStatus.cancelled);
-
-    if (booking.paymentStatus == PaymentStatus.paid) {
-      batch.set(_paymentRecords.doc(), {
-        'bookingId': bookingId,
-        'bookingReference': booking.bookingReference,
-        'playerId': booking.playerId,
-        'providerId': booking.providerId,
-        'type': 'refund',
-        'method': booking.paymentMethod.value,
-        'amount': booking.totalPayable,
-        'currency': 'LKR',
-        'status': PaymentStatus.refunded,
-        'transactionId': booking.transactionId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    _addNotification(
-      batch,
-      userId: booking.playerId,
-      bookingId: bookingId,
-      type: 'booking',
-      title: 'Booking cancelled',
-      message: booking.paymentStatus == PaymentStatus.paid
-          ? '${booking.bookingReference} was cancelled. '
-              '${formatLkr(booking.totalPayable)} will be refunded.'
-          : '${booking.bookingReference} was cancelled.',
-    );
-    _addNotification(
-      batch,
-      userId: booking.providerId,
-      bookingId: bookingId,
-      type: 'rental_request',
-      title: 'Booking cancelled by player',
-      message: '${booking.playerName} cancelled the booking for '
-          '${booking.equipmentName}.',
-    );
-
-    await batch.commit();
+    _requirePlayerId();
+    await BookingLifecycleService(_db).transition(bookingId, 'cancelled', reason: reason);
   }
 
-  /// Keeps the availability slot in step when the provider accepts,
-  /// rejects or completes a booking, so rejected dates become free again.
-  Future<void> syncSlotStatus(String bookingId, String status) async {
-    final batch = _db.batch();
-    _setSlotStatus(batch, bookingId, status);
-    await batch.commit();
-  }
-
-  void _setSlotStatus(WriteBatch batch, String bookingId, String status) {
-    batch.set(
-      _slots.doc(bookingId),
-      {'status': status, 'updatedAt': FieldValue.serverTimestamp()},
-      SetOptions(merge: true),
-    );
-  }
+  /// Route status changes through the same rental/slot/reservation transaction.
+  Future<void> syncSlotStatus(String bookingId, String status, {
+    bool returnedWithoutDamage = false, bool depositRefunded = false,
+  }) => BookingLifecycleService(_db).transition(bookingId, status,
+    returnedWithoutDamage: returnedWithoutDamage, depositRefunded: depositRefunded);
 
   void _addNotification(
-    WriteBatch batch, {
+    Transaction batch, {
     required String userId,
     required String bookingId,
     required String type,
@@ -487,6 +432,7 @@ class BookingService {
     batch.set(_notifications.doc(), {
       'userId': userId,
       'bookingId': bookingId,
+      'referenceId': bookingId,
       'type': type,
       'title': title,
       'message': message,

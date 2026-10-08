@@ -16,8 +16,7 @@ class SupportService {
       return user.uid;
     }
 
-    // Temporary preview/testing fallback.
-    return 'demo_member3_user';
+    throw StateError('Please log in to continue.');
   }
 
   String get currentUserEmail {

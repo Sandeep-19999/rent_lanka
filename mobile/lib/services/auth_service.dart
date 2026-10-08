@@ -8,7 +8,7 @@ class AuthService {
       return user.uid;
     }
 
-    return 'demo_provider';
+    throw StateError('Please log in to access your provider account.');
   }
 
   static String get playerId {
@@ -29,7 +29,7 @@ class AuthService {
       return name;
     }
 
-    return 'Sports Player';
+    return user?.email?.split('@').first ?? '';
   }
 
   static bool get isEmailVerified =>
