@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../models/booking.dart';
+import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
-import 'payment_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../payment/payment_screen.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// Booking Summary: clear cost breakdown and total before payment.
 class BookingSummaryScreen extends StatelessWidget {

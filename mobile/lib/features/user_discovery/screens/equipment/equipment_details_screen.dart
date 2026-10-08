@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/services/favourite_service.dart';
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/exchange_request_screen.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/models/equipment_model.dart' as booking;
+import 'package:rent_lanka_mobile/features/booking_payment/screens/booking/booking_screen.dart';
 
 class EquipmentDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> equipment;
@@ -108,6 +111,58 @@ class _EquipmentDetailsScreenState
     _showMessage(
       '$feature will be connected during module integration.',
     );
+  }
+
+  void _requestExchange(Map<String, dynamic> equipment) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage('Please log in to request an exchange.');
+      return;
+    }
+
+    final equipmentId = _text(equipment, 'id');
+    final equipmentName = _text(equipment, 'name');
+    final providerId = _text(equipment, 'providerId');
+    if (equipmentId.isEmpty || equipmentName.isEmpty || providerId.isEmpty) {
+      _showMessage('Equipment information is incomplete. Please refresh the listing.');
+      return;
+    }
+    if (providerId == user.uid) {
+      _showMessage('You cannot request an exchange for your own equipment.');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExchangeRequestScreen(
+          requestedEquipmentId: equipmentId,
+          requestedEquipmentName: equipmentName,
+          requestedProviderId: providerId,
+        ),
+      ),
+    );
+  }
+
+  void _bookEquipment(Map<String, dynamic> data) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage('Please log in to book equipment.');
+      return;
+    }
+    try {
+      final equipment = booking.Equipment.fromDiscovery(data);
+      if (equipment.providerId == user.uid) {
+        _showMessage('You cannot book your own equipment.');
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => BookingScreen(equipment: equipment)),
+      );
+    } on FormatException catch (error) {
+      _showMessage(error.message);
+    }
   }
 
   Future<void> _toggleFavourite(
@@ -712,7 +767,7 @@ class _EquipmentDetailsScreenState
               height: 52,
               child: OutlinedButton(
                 onPressed: available
-                    ? () => _showComingSoon('Exchange request')
+                    ? () => _requestExchange(equipment)
                     : null,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: primaryRed,
@@ -737,7 +792,7 @@ class _EquipmentDetailsScreenState
               height: 52,
               child: ElevatedButton(
                 onPressed: available
-                    ? () => _showComingSoon('Equipment booking')
+                    ? () => _bookEquipment(equipment)
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryRed,
@@ -748,7 +803,7 @@ class _EquipmentDetailsScreenState
                   ),
                 ),
                 child: const Text(
-                  'Book Equipment',
+                  'Book Now',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../models/equipment.dart';
+import '../../models/equipment_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
-import 'booking_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../booking/booking_screen.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// Equipment Details (EV03 / FR04, FR05): photos, condition, price,
 /// brand, size, provider and availability, with the Book Now action.

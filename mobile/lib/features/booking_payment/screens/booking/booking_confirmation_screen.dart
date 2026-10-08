@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../models/booking.dart';
+import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
 import 'booking_details_screen.dart';
 import 'my_bookings_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// Booking Confirmation (FR12 / FR13): clear success state with the
 /// booking reference and payment receipt.

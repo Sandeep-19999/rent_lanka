@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../models/booking.dart';
+import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
 import 'booking_details_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// My Bookings: the player's rentals grouped as Upcoming / Active / Past,
 /// updated live as the provider accepts, hands over or completes them.

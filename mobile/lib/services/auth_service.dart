@@ -18,8 +18,7 @@ class AuthService {
       return user.uid;
     }
 
-    // Temporary fallback until login/signup is connected
-    return 'demo_player';
+    throw StateError('Please log in to access bookings.');
   }
 
   static String get playerName {

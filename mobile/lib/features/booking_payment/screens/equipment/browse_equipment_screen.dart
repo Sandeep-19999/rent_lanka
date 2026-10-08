@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../models/equipment.dart';
+import '../../models/equipment_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
 import 'equipment_details_screen.dart';
-import 'my_bookings_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../booking/my_bookings_screen.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// TEMPORARY: simple list of bookable equipment so the booking flow can be
 /// tested before the Home / Search / Filter screens are connected.

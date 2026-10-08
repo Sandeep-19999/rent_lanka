@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/booking.dart';
-import '../../../models/equipment.dart';
+import '../models/booking_model.dart';
+import '../models/equipment_model.dart';
 
 const Color primaryRed = Color(0xFFED1235);
 const Color textGrey = Color(0xFF8A8A8A);

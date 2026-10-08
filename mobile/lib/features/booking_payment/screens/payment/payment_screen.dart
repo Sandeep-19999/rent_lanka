@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../models/booking.dart';
+import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../services/payment_service.dart';
 import '../../utils/date_utils.dart';
-import 'booking_confirmation_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../booking/booking_confirmation_screen.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// Payment & Checkout (EV04 / FR10): select a payment method and pay.
 class PaymentScreen extends StatefulWidget {

@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../models/booking.dart';
-import '../models/equipment.dart';
+import '../models/booking_model.dart';
+import '../models/equipment_model.dart';
 import '../utils/date_utils.dart';
-import 'auth_service.dart';
+import '../../../services/auth_service.dart';
 import 'payment_service.dart';
 
 class BookingException implements Exception {
@@ -73,6 +73,14 @@ class BookingService {
 
   final FirebaseFirestore _db;
   final PaymentService _payments;
+
+  String _requirePlayerId() {
+    try {
+      return AuthService.playerId;
+    } on StateError {
+      throw const BookingException('Please log in to access bookings.');
+    }
+  }
 
   static const int maxRentalDays = 30;
   static const int bookingWindowDays = 90;
@@ -178,16 +186,25 @@ class BookingService {
     CardDetails? card,
     String? bank,
   }) async {
+    final playerId = _requirePlayerId();
     final equipmentDoc = await _equipment.doc(draft.equipment.id).get();
     if (!equipmentDoc.exists) {
       throw const BookingException('This equipment is no longer listed.');
     }
-    final equipment = Equipment.fromDoc(equipmentDoc);
+    final Equipment equipment;
+    try {
+      equipment = Equipment.fromDiscovery({
+        ...equipmentDoc.data()!,
+        'id': equipmentDoc.id,
+      });
+    } on FormatException catch (error) {
+      throw BookingException(error.message);
+    }
     if (!equipment.canBeBooked) {
       throw const BookingException(
           'This equipment is not available for booking right now.');
     }
-    if (equipment.providerId == AuthService.playerId) {
+    if (equipment.providerId == playerId) {
       throw const BookingException('You cannot book your own equipment.');
     }
     if (draft.pickupMethod == PickupMethod.delivery &&
@@ -215,6 +232,9 @@ class BookingService {
     );
     final price = latestDraft.price;
 
+    if (_requirePlayerId() != playerId) {
+      throw const BookingException('Your login changed. Please start booking again.');
+    }
     final payment = await _payments.process(
       method: paymentMethod,
       amount: price.totalPayable,
@@ -225,7 +245,6 @@ class BookingService {
 
     final bookingRef = _bookings.doc();
     final reference = Booking.referenceFor(bookingRef.id);
-    final playerId = AuthService.playerId;
     final now = FieldValue.serverTimestamp();
     final period = AppDates.prettyRange(
       AppDates.key(latestDraft.startDate),
@@ -327,6 +346,9 @@ class BookingService {
           'for $period.',
     );
 
+    if (_requirePlayerId() != playerId) {
+      throw const BookingException('Your login changed. Please start booking again.');
+    }
     await batch.commit();
     return bookingRef.id;
   }
@@ -335,10 +357,11 @@ class BookingService {
   // My Bookings / Booking Details
   // ---------------------------------------------------------------------------
 
-  Stream<List<Booking>> watchMyBookings() {
+  Stream<List<Booking>> watchMyBookings() async* {
+    final playerId = _requirePlayerId();
     // Sorted on the client to avoid needing a composite index.
-    return _bookings
-        .where('playerId', isEqualTo: AuthService.playerId)
+    yield* _bookings
+        .where('playerId', isEqualTo: playerId)
         .snapshots()
         .map((snapshot) {
       final bookings = snapshot.docs.map(Booking.fromDoc).toList();
@@ -351,14 +374,21 @@ class BookingService {
     });
   }
 
-  Stream<Booking?> watchBooking(String bookingId) {
-    return _bookings.doc(bookingId).snapshots().map(
-          (doc) => doc.exists ? Booking.fromDoc(doc) : null,
-        );
+  Stream<Booking?> watchBooking(String bookingId) async* {
+    final playerId = _requirePlayerId();
+    yield* _bookings.doc(bookingId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      final booking = Booking.fromDoc(doc);
+      if (booking.playerId != playerId) {
+        throw const BookingException('This booking does not belong to you.');
+      }
+      return booking;
+    });
   }
 
   /// Cancels a pending/accepted booking and refunds a prepaid amount.
   Future<void> cancelBooking(String bookingId, {String reason = ''}) async {
+    final playerId = _requirePlayerId();
     final bookingRef = _bookings.doc(bookingId);
 
     final booking = await _db.runTransaction<Booking>((transaction) async {
@@ -366,7 +396,7 @@ class BookingService {
       if (!doc.exists) throw const BookingException('Booking not found.');
 
       final booking = Booking.fromDoc(doc);
-      if (booking.playerId != AuthService.playerId) {
+      if (booking.playerId != playerId) {
         throw const BookingException('You can only cancel your own bookings.');
       }
       if (!booking.canCancel) {

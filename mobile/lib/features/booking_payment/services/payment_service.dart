@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import '../models/booking.dart';
+import '../models/booking_model.dart';
 
 class CardDetails {
   final String holderName;

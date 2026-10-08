@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/screens/booking/my_bookings_screen.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/screens/auth/login_screen.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/search/category_equipment_screen.dart';
@@ -125,6 +126,24 @@ class AppSideMenu extends StatelessWidget {
                     selected: true,
                     onTap: () {
                       Navigator.pop(context);
+                    },
+                  ),
+
+                  _buildMenuItem(
+                    title: 'My Bookings',
+                    trailing: Icons.event_note_outlined,
+                    onTap: () {
+                      final navigator = Navigator.of(context);
+                      if (FirebaseAuth.instance.currentUser == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please log in to view bookings.')),
+                        );
+                        return;
+                      }
+                      navigator.pop();
+                      navigator.push(MaterialPageRoute(
+                        builder: (_) => const MyBookingsScreen(),
+                      ));
                     },
                   ),
 

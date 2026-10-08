@@ -45,14 +45,39 @@ class Equipment {
   });
 
   factory Equipment.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+    return Equipment.fromData(doc.id, doc.data() ?? {});
+  }
+
+  /// Maps the live listing already loaded by User Discovery, without a read.
+  factory Equipment.fromDiscovery(Map<String, dynamic> data) {
+    final id = data['id']?.toString().trim() ?? '';
+    final providerId = data['providerId']?.toString().trim() ?? '';
+    final name = data['name']?.toString().trim() ?? '';
+    final category = data['category']?.toString().trim() ?? '';
+    final price = data['pricePerDay'];
+    if (id.isEmpty || providerId.isEmpty || name.isEmpty || category.isEmpty ||
+        price is! num || !price.isFinite || price <= 0 ||
+        data['isAvailable'] is! bool ||
+        (data['status']?.toString().trim() ?? '').isEmpty) {
+      throw const FormatException(
+        'Equipment information is incomplete. Please refresh the listing.',
+      );
+    }
+    final equipment = Equipment.fromData(id, data);
+    if (!equipment.canBeBooked) {
+      throw const FormatException('This equipment is unavailable for booking.');
+    }
+    return equipment;
+  }
+
+  factory Equipment.fromData(String id, Map<String, dynamic> data) {
 
     final price = data['pricePerDay'];
     final deposit = data['securityDeposit'];
     final dates = data['unavailableDates'];
 
     return Equipment(
-      id: doc.id,
+      id: id,
       name: data['name']?.toString() ?? 'Equipment',
       category: data['category']?.toString() ?? '',
       brand: data['brand']?.toString() ?? '',

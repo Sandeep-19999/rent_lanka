@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../models/booking.dart';
-import '../../models/equipment.dart';
+import '../../models/booking_model.dart';
+import '../../models/equipment_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
 import 'booking_summary_screen.dart';
-import 'widgets/booking_widgets.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// Rental Booking: rent dates + pickup / delivery selection (EV04, EV08).
 class BookingScreen extends StatefulWidget {

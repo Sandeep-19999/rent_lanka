@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../models/booking.dart';
+import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
-import 'widgets/booking_widgets.dart';
+import '../../widgets/booking_widgets.dart';
 
 /// Booking Details: status progress, rental + pickup info, payment
 /// receipt and the Cancel Booking action.

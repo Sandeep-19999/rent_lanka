@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rent_lanka_mobile/models/booking.dart';
-import 'package:rent_lanka_mobile/services/booking_service.dart';
-import 'package:rent_lanka_mobile/services/payment_service.dart';
-import 'package:rent_lanka_mobile/utils/date_utils.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/models/booking_model.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/services/booking_service.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/services/payment_service.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/utils/date_utils.dart';
 
 void main() {
   group('AppDates', () {
