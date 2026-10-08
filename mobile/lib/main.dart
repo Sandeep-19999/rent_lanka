@@ -28,6 +28,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
 import 'features/provider/screens/provider_dashboard.dart';
+import 'features/user_discovery/screens/splash/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +53,7 @@ class RentLankaApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF8F8FA),
         fontFamily: 'Arial',
       ),
-      home: const ProviderDashboard(),
+      home: const SplashScreen(),
     );
   }
 }
