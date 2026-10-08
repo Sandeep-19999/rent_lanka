@@ -1,3 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../exchange_messaging_profile/screens/chat_screen.dart';
+import '../../exchange_messaging_profile/services/chat_service.dart';
 import 'package:flutter/material.dart';
 
 import '../models/rental_request_model.dart';
@@ -5,13 +8,82 @@ import '../services/rental_request_service.dart';
 
 import 'pickup_return_screen.dart';
 
-class RequestDetailsScreen extends StatelessWidget {
+class RequestDetailsScreen extends StatefulWidget {
   final String requestId;
 
   const RequestDetailsScreen({
     super.key,
     required this.requestId,
   });
+
+  @override
+  State<RequestDetailsScreen> createState() => _RequestDetailsScreenState();
+}
+
+class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
+  bool _openingChat = false;
+  String get requestId => widget.requestId;
+
+  Future<void> _messageUser(RentalRequestModel request) async {
+    if (_openingChat) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showChatError('Please log in to message the player.');
+      return;
+    }
+    if (request.providerId != user.uid) {
+      _showChatError('This rental request does not belong to your account.');
+      return;
+    }
+    if (request.playerId.isEmpty || request.playerId == user.uid) {
+      _showChatError('This request has no valid player account to message.');
+      return;
+    }
+
+    setState(() => _openingChat = true);
+    try {
+      final service = ChatService();
+      // The request carries the player's name; no placeholder receiver is used.
+      final playerName = request.playerName.trim();
+      if (playerName.isEmpty) {
+        throw Exception('Player name is missing from this request.');
+      }
+      final chatId = await service.ensureContextChat(
+        providerId: request.providerId,
+        playerId: request.playerId,
+        playerName: playerName,
+        equipmentId: request.equipmentId,
+        equipmentName: request.equipmentName,
+        rentalRequestId: request.id,
+      );
+      if (!mounted) return;
+      if (FirebaseAuth.instance.currentUser?.uid != user.uid) {
+        _showChatError('Your login changed. Please reopen the request.');
+        return;
+      }
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ChatScreen(
+          chatId: chatId,
+          chatName: playerName,
+          otherUserId: request.playerId,
+          equipmentName: request.equipmentName,
+          contextType: 'rental_request',
+        )),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showChatError(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _openingChat = false);
+    }
+  }
+
+  void _showChatError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   static const Color primaryRed =
       Color(0xFFED1235);
@@ -819,17 +891,9 @@ class RequestDetailsScreen extends StatelessWidget {
                         height: 52,
                         child:
                             OutlinedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Message screen will be connected later.',
-                                ),
-                              ),
-                            );
-                          },
+                          onPressed: _openingChat
+                              ? null
+                              : () => _messageUser(request),
                           icon: const Icon(
                             Icons
                                 .chat_bubble_outline,

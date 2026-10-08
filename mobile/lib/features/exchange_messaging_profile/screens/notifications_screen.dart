@@ -1,3 +1,4 @@
+import '../models/chat_context.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -673,6 +674,8 @@ class _NotificationsScreenState
           chatId: chatId,
           chatName: otherUserName,
           otherUserId: otherUserId,
+          equipmentName: ChatContext.fromData(data).equipmentName,
+          contextType: ChatContext.fromData(data).contextType,
         ),
       ),
     );

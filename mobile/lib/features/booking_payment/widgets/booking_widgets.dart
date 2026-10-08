@@ -14,6 +14,7 @@ class BookingPage extends StatelessWidget {
   final Widget body;
   final Widget? bottom;
   final bool showBack;
+  final Widget? bottomNavigationBar;
 
   const BookingPage({
     super.key,
@@ -21,12 +22,13 @@ class BookingPage extends StatelessWidget {
     required this.body,
     this.bottom,
     this.showBack = true,
+    this.bottomNavigationBar,
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      bottomNavigationBar: bottomNavigationBar,      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

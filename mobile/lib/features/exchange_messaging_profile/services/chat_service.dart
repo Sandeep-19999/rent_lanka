@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'notification_service.dart';
+import '../models/chat_context.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore;
@@ -90,6 +91,10 @@ class ChatService {
         .snapshots();
   }
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchChat(String chatId) {
+    return _firestore.collection('chats').doc(chatId).snapshots();
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMessages(String chatId) {
     return _firestore
         .collection('chats')
@@ -166,6 +171,65 @@ class ChatService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
+    return chatId;
+  }
+
+  /// Creates one rental conversation per request; legacy pair chats are untouched.
+  Future<String> ensureContextChat({
+    required String providerId,
+    required String playerId,
+    required String playerName,
+    required String equipmentId,
+    required String equipmentName,
+    required String rentalRequestId,
+  }) async {
+    final senderId = currentUserId;
+    if (senderId != providerId && senderId != playerId) {
+      throw Exception('This request does not belong to your account.');
+    }
+    if (equipmentId.trim().isEmpty || equipmentName.trim().isEmpty ||
+        playerName.trim().isEmpty) {
+      throw Exception('Rental request equipment or player information is missing.');
+    }
+    final chatId = ChatContext.rentalChatId(
+      providerId: providerId, playerId: playerId, requestId: rentalRequestId,
+    );
+    final providerName = senderId == providerId
+        ? await _getCurrentUserName()
+        : await getUserDisplayName(providerId);
+    final reference = _firestore.collection('chats').doc(chatId);
+    await _firestore.runTransaction((transaction) async {
+      if (currentUserId != senderId) {
+        throw Exception('Your login changed. Please reopen the request.');
+      }
+      final document = await transaction.get(reference);
+      final data = document.data() ?? {};
+      final rawNames = data['participantNames'];
+      final names = rawNames is Map
+          ? Map<String, dynamic>.from(rawNames) : <String, dynamic>{};
+      names[providerId] = providerName;
+      names[playerId] = playerName;
+      transaction.set(reference, {
+        'participants': [providerId, playerId],
+        'participantNames': names,
+        'providerId': providerId,
+        'playerId': playerId,
+        'providerName': providerName,
+        'playerName': playerName,
+        'equipmentId': equipmentId,
+        'equipmentName': equipmentName,
+        'contextType': 'rental_request',
+        'contextId': rentalRequestId,
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (!document.exists) ...{
+          'unreadCounts': {providerId: 0, playerId: 0},
+          'lastMessage': '',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+          'lastSenderId': '',
+          'createdAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+    });
     return chatId;
   }
 

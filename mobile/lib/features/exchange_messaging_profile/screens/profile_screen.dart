@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ class ProfileScreen extends StatelessWidget {
     final ProfileService profileService = ProfileService();
 
     return Scaffold(
+      bottomNavigationBar: const PlayerBottomNavigation(currentIndex: 4),
       backgroundColor: backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.white,

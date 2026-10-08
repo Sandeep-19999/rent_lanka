@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/booking_model.dart';
@@ -20,6 +21,7 @@ class MyBookingsScreen extends StatelessWidget {
       length: 3,
       child: BookingPage(
         title: 'My Bookings',
+        bottomNavigationBar: const PlayerBottomNavigation(currentIndex: 2),
         showBack: showBack,
         body: StreamBuilder<List<Booking>>(
           stream: BookingService().watchMyBookings(),
