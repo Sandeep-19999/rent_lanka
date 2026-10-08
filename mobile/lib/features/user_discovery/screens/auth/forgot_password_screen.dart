@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({super.key, this.fromProfile = false});
+
+  final bool fromProfile;
 
   @override
   State<ForgotPasswordScreen> createState() =>
@@ -22,6 +24,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   bool _isLoading = false;
   bool _emailSent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fromProfile) {
+      _emailController.text = FirebaseAuth.instance.currentUser?.email ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -118,9 +128,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F8FA),
+      appBar: AppBar(title: const Text('Reset Password',
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        backgroundColor: Colors.white, surfaceTintColor: Colors.white),
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(
               horizontal: 24,
@@ -133,20 +147,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    padding: EdgeInsets.zero,
-                    alignment: Alignment.centerLeft,
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      size: 26,
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
                   Container(
                     width: 64,
                     height: 64,
@@ -164,9 +164,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   const SizedBox(height: 24),
 
                   const Text(
-                    'Forgot Password?',
+                    'Reset your password',
                     style: TextStyle(
-                      fontSize: 32,
+                      fontSize: 28,
                       fontWeight: FontWeight.w800,
                       color: darkText,
                       letterSpacing: -0.5,
@@ -351,9 +351,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         Icons.arrow_back_rounded,
                         size: 18,
                       ),
-                      label: const Text(
-                        'Back to Sign In',
-                        style: TextStyle(
+                      label: Text(
+                        widget.fromProfile ? 'Back to Profile' : 'Back to Sign In',
+                        style: const TextStyle(
                           fontWeight: FontWeight.w700,
                         ),
                       ),

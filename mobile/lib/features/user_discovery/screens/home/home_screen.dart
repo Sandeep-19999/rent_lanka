@@ -1,6 +1,9 @@
 
 import 'package:flutter/material.dart';
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/messages_screen.dart';
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/notifications_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rent_lanka_mobile/navigation/profile_navigation.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/models/equipment_model.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/services/equipment_service.dart';
@@ -200,6 +203,24 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    if (index == 3) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const MessagesScreen()),
+      );
+      return;
+    }
+
+    if (index == 4) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+      openProfile(context);
+      return;
+    }
+
     setState(() {
       _selectedIndex = index;
     });
@@ -366,7 +387,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  onPressed: () {},
+                  tooltip: 'Notifications',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
                   icon: const Icon(
                     Icons.notifications_none_rounded,
                     color: darkText,

@@ -1,4 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../provider/screens/provider_dashboard.dart';
+import '../../user_discovery/screens/auth/login_screen.dart';
+import '../../user_discovery/screens/home/home_screen.dart';
+import '../../user_discovery/screens/role/role_selection_screen.dart';
+import '../../user_discovery/services/user_service.dart';
+
+import '../widgets/change_password_dialog.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
   const PrivacySecurityScreen({super.key});
@@ -17,9 +26,14 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F8FA),
+      appBar: AppBar(
+        title: const Text('Password & Security', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        backgroundColor: Colors.white, surfaceTintColor: Colors.white,
+      ),
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
@@ -27,9 +41,21 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
-
-                  const SizedBox(height: 36),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(color: const Color(0xFFFFEEF1),
+                      borderRadius: BorderRadius.circular(22)),
+                    child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.shield_outlined, color: primaryRed, size: 34),
+                      SizedBox(height: 14),
+                      Text('Your account, protected', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                      SizedBox(height: 8),
+                      Text('Manage your password and account security in one place.',
+                        style: TextStyle(color: Colors.black54, height: 1.5)),
+                    ]),
+                  ),
+                  const SizedBox(height: 28),
 
                   const Text(
                     'SECURITY',
@@ -121,32 +147,6 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        InkWell(
-          onTap: () {
-            Navigator.maybePop(context);
-          },
-          borderRadius: BorderRadius.circular(50),
-          child: const Padding(
-            padding: EdgeInsets.all(4),
-            child: Icon(Icons.arrow_back_ios_new, size: 22, color: darkText),
-          ),
-        ),
-        const SizedBox(width: 28),
-        const Text(
-          'Privacy & security',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: darkText,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildNavigationTile({
     required IconData icon,
     required Color iconColor,
@@ -156,7 +156,12 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
     required VoidCallback onTap,
     Widget? trailing,
   }) {
-    return InkWell(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFEBEBEF))),
+      child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Row(
@@ -185,6 +190,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
           ),
           trailing ?? const Icon(Icons.chevron_right, color: Color(0xFFC5C5C5)),
         ],
+      ),
       ),
     );
   }
@@ -246,64 +252,55 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   }
 
   Future<void> _showChangePasswordDialog() async {
-    final currentController = TextEditingController();
-
-    final newController = TextEditingController();
-
-    await showDialog<void>(
+    final updated = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Change password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current password',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'New password'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Password update will connect to Firebase Authentication during integration.',
-                    ),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryRed,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Update'),
-            ),
-          ],
-        );
-      },
+      barrierDismissible: false,
+      builder: (_) => const ChangePasswordDialog(),
     );
 
-    currentController.dispose();
-    newController.dispose();
+    if (!mounted || updated != true) return;
+    await _navigateAfterPasswordChange();
+  }
+
+  Future<void> _navigateAfterPasswordChange() async {
+    Widget destination;
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        destination = const LoginScreen();
+      } else {
+        final role = (await UserService().getCurrentUserRole() ?? '')
+            .trim()
+            .toLowerCase();
+        destination = switch (role) {
+          'provider' => const ProviderDashboard(),
+          'player' => const HomeScreen(),
+          '' => const RoleSelectionScreen(),
+          _ => throw StateError('Unknown account role'),
+        };
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Password updated, but your account role could not be loaded.',
+          ),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: _navigateAfterPasswordChange,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => destination),
+      (route) => false,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Password updated successfully.')),
+    );
   }
 }

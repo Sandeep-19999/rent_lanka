@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rent_lanka_mobile/features/provider/screens/provider_dashboard.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/services/user_service.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/home/home_screen.dart';
 
@@ -19,12 +20,16 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   final UserService _userService = UserService();
 
   void _selectRole(String role) {
+    if (_isLoading) return;
+
     setState(() {
       _selectedRole = role;
     });
   }
 
   Future<void> _continue() async {
+  if (_isLoading) return;
+
   if (_selectedRole == null) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -36,18 +41,20 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     return;
   }
 
+  final String role = _selectedRole!;
+
   setState(() {
     _isLoading = true;
   });
 
   try {
     // Save selected role to Firestore
-    await _userService.saveUserRole(_selectedRole!);
+    await _userService.saveUserRole(role);
 
     if (!mounted) return;
 
     // Sports Player -> User Home
-    if (_selectedRole == 'player') {
+    if (role == 'player') {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
@@ -58,14 +65,14 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       return;
     }
 
-    // Provider navigation is handled by the other member.
-    if (_selectedRole == 'provider') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Provider role saved successfully!'),
-          backgroundColor: Color(0xFF2E7D32),
-          behavior: SnackBarBehavior.floating,
+    // Equipment Provider -> Existing Provider Dashboard
+    if (role == 'provider') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ProviderDashboard(),
         ),
+        (route) => false,
       );
     }
   } catch (e) {

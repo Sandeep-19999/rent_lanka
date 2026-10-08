@@ -1,3 +1,4 @@
+import '../widgets/provider_bottom_navigation.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:flutter/material.dart';
 
@@ -889,65 +890,8 @@ class RentalRequestsScreen extends StatelessWidget {
   // BOTTOM NAVIGATION
   // ===========================
 
-  Widget _buildBottomNavigation(
-    BuildContext context,
-  ) {
-    return Container(
-      height: 75,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: Color(0xFFE8E8E8),
-          ),
-        ),
-      ),
-      child: Center(
-        child: SizedBox(
-          width: 420,
-          child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceAround,
-            children: [
-              _BottomNavItem(
-                icon:
-                    Icons.grid_view_rounded,
-                label: 'Dashboard',
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              const _BottomNavItem(
-                icon:
-                    Icons.hexagon_outlined,
-                label: 'My Items',
-              ),
-
-              const _BottomNavItem(
-                icon: Icons
-                    .shopping_bag_outlined,
-                label: 'Requests',
-                active: true,
-              ),
-
-              const _BottomNavItem(
-                icon:
-                    Icons.chat_bubble_outline,
-                label: 'Messages',
-              ),
-
-              const _BottomNavItem(
-                icon:
-                    Icons.person_outline,
-                label: 'Profile',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildBottomNavigation(BuildContext context) =>
+      const ProviderBottomNavigation(currentIndex: 2);
 }
 
 // ===========================
@@ -1000,59 +944,3 @@ class _EmptyRequests extends StatelessWidget {
 // ===========================
 // BOTTOM NAV ITEM
 // ===========================
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback? onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    this.active = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    const Color red =
-        Color(0xFFED1235);
-
-    return InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        width: 65,
-        height: 65,
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color:
-                  active ? red : Colors.grey,
-            ),
-
-            const SizedBox(height: 5),
-
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9,
-                color:
-                    active ? red : Colors.grey,
-                fontWeight: active
-                    ? FontWeight.w700
-                    : FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rent_lanka_mobile/features/provider/screens/provider_dashboard.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/services/auth_service.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/services/user_service.dart';
@@ -73,11 +74,13 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // PROVIDER -> EXISTING PROVIDER FLOW
-      // Provider navigation will be integrated by the team.
       if (normalizedRole == 'provider') {
-        _showMessage(
-          'Provider account signed in successfully.',
-          isError: false,
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ProviderDashboard(),
+          ),
+          (route) => false,
         );
         return;
       }
