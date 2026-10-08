@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EquipmentModel {
@@ -15,6 +14,8 @@ class EquipmentModel {
   final String status;
   final List<String> unavailableDates;
   final DateTime? updatedAt;
+  final String location;
+  final String transactionType;
 
   const EquipmentModel({
     required this.id,
@@ -30,13 +31,14 @@ class EquipmentModel {
     required this.status,
     required this.unavailableDates,
     this.updatedAt,
+    this.location = '',
+    this.transactionType = '',
   });
 
   factory EquipmentModel.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data() ?? {};
-
     final rawPrice = data['pricePerDay'];
 
     return EquipmentModel(
@@ -61,6 +63,9 @@ class EquipmentModel {
       updatedAt: data['updatedAt'] is Timestamp
           ? (data['updatedAt'] as Timestamp).toDate()
           : null,
+      location: data['location']?.toString().trim() ?? '',
+      transactionType:
+          data['transactionType']?.toString().trim() ?? '',
     );
   }
 }

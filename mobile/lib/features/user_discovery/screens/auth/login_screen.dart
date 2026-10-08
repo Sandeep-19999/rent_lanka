@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -6,6 +7,7 @@ import 'package:rent_lanka_mobile/features/user_discovery/services/user_service.
 import 'package:rent_lanka_mobile/features/user_discovery/screens/auth/forgot_password_screen.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/auth/signup_screen.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/home/home_screen.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/role/role_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,17 +20,20 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color primaryRed = Color(0xFFE31E24);
   static const Color darkText = Color(0xFF171717);
 
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _emailController =
+      TextEditingController();
 
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _passwordController =
+      TextEditingController();
+
+  final GlobalKey<FormState> _formKey =
+      GlobalKey<FormState>();
 
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
 
   bool _obscurePassword = true;
   bool _rememberMe = false;
-
   bool _isLoading = false;
   bool _isGoogleLoading = false;
 
@@ -40,17 +45,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================
-  // NAVIGATE AFTER LOGIN
+  // NAVIGATION AFTER LOGIN
   // =========================================================
 
   Future<void> _navigateAfterLogin() async {
     try {
-      final String? role = await _userService.getCurrentUserRole();
+      final String? role =
+          await _userService.getCurrentUserRole();
 
       if (!mounted) return;
 
-      // Sports Player -> User Home
-      if (role == 'player') {
+      final String normalizedRole =
+          (role ?? '').trim().toLowerCase();
+
+      debugPrint('CURRENT USER ROLE: $normalizedRole');
+
+      // PLAYER -> HOME SCREEN
+      if (normalizedRole == 'player') {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -61,8 +72,9 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Provider navigation will be handled by another member.
-      if (role == 'provider') {
+      // PROVIDER -> EXISTING PROVIDER FLOW
+      // Provider navigation will be integrated by the team.
+      if (normalizedRole == 'provider') {
         _showMessage(
           'Provider account signed in successfully.',
           isError: false,
@@ -70,9 +82,25 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // No role found
+      // NO ROLE -> ROLE SELECTION SCREEN
+      if (normalizedRole.isEmpty) {
+        debugPrint(
+          'NO ROLE FOUND: Navigating to Role Selection',
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                const RoleSelectionScreen(),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+
       _showMessage(
-        'No user role found. Please select your role.',
+        'Unknown account role: $normalizedRole',
       );
     } catch (e) {
       if (!mounted) return;
@@ -90,6 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================
 
   Future<void> _login() async {
+    if (_isLoading || _isGoogleLoading) return;
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -107,21 +137,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final User? user = credential.user;
-
-      _showMessage(
-        user?.email != null
-            ? 'Welcome ${user!.email}!'
-            : 'Login successful!',
-        isError: false,
+      debugPrint(
+        'EMAIL LOGIN SUCCESS: ${credential.user?.email}',
       );
 
-      // Check Firestore role and navigate.
       await _navigateAfterLogin();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
-      String message = 'Unable to sign in. Please try again.';
+      String message =
+          'Unable to sign in. Please try again.';
 
       switch (e.code) {
         case 'invalid-email':
@@ -142,11 +167,13 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
 
         case 'too-many-requests':
-          message = 'Too many login attempts. Please try again later.';
+          message =
+              'Too many login attempts. Please try again later.';
           break;
 
         case 'network-request-failed':
-          message = 'Please check your internet connection.';
+          message =
+              'Please check your internet connection.';
           break;
       }
 
@@ -173,11 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================
 
   Future<void> _googleSignIn() async {
-    debugPrint('========================================');
-    debugPrint('GOOGLE SIGN IN: Button clicked');
-    debugPrint('========================================');
-
-    if (_isGoogleLoading) {
+    if (_isGoogleLoading || _isLoading) {
       return;
     }
 
@@ -186,39 +209,25 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      debugPrint('GOOGLE SIGN IN: Calling AuthService...');
+      debugPrint('GOOGLE SIGN IN STARTED');
 
       final UserCredential credential =
           await _authService.signInWithGoogle();
 
-      debugPrint(
-        'GOOGLE SIGN IN: Firebase returned successfully',
-      );
-      debugPrint('USER UID: ${credential.user?.uid}');
-      debugPrint('USER EMAIL: ${credential.user?.email}');
-      debugPrint('USER NAME: ${credential.user?.displayName}');
+      debugPrint('GOOGLE SIGN IN SUCCESS');
+      debugPrint('UID: ${credential.user?.uid}');
+      debugPrint('EMAIL: ${credential.user?.email}');
+      debugPrint('NAME: ${credential.user?.displayName}');
 
       if (!mounted) return;
 
-      final User? user = credential.user;
-
-      _showMessage(
-        user?.displayName != null
-            ? 'Welcome ${user!.displayName}!'
-            : 'Google Sign-In successful!',
-        isError: false,
-      );
-
-      // Check Firestore role and navigate.
+      // CHECK USER ROLE AND NAVIGATE
       await _navigateAfterLogin();
     } on FirebaseAuthException catch (e) {
-      debugPrint('========================================');
-      debugPrint('FIREBASE AUTH ERROR');
-      debugPrint('ERROR CODE: ${e.code}');
-      debugPrint('ERROR MESSAGE: ${e.message}');
-      debugPrint('========================================');
-
       if (!mounted) return;
+
+      debugPrint('GOOGLE AUTH ERROR: ${e.code}');
+      debugPrint('ERROR MESSAGE: ${e.message}');
 
       String message;
 
@@ -259,20 +268,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       _showMessage(message);
     } catch (e, stackTrace) {
-      debugPrint('========================================');
-      debugPrint('GOOGLE SIGN IN UNKNOWN ERROR');
-      debugPrint('ERROR: $e');
-      debugPrint('STACK TRACE: $stackTrace');
-      debugPrint('========================================');
-
       if (!mounted) return;
+
+      debugPrint('GOOGLE SIGN IN ERROR: $e');
+      debugPrint('STACK TRACE: $stackTrace');
 
       _showMessage(
         'Google Sign-In error: $e',
       );
     } finally {
-      debugPrint('GOOGLE SIGN IN: Finished');
-
       if (mounted) {
         setState(() {
           _isGoogleLoading = false;
@@ -314,7 +318,8 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
-      String message = 'Unable to send password reset email.';
+      String message =
+          'Unable to send password reset email.';
 
       switch (e.code) {
         case 'invalid-email':
@@ -326,7 +331,8 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
 
         case 'too-many-requests':
-          message = 'Too many requests. Please try again later.';
+          message =
+              'Too many requests. Please try again later.';
           break;
       }
 
@@ -341,22 +347,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================
-  // SNACKBAR MESSAGE
+  // SNACKBAR
   // =========================================================
 
   void _showMessage(
     String message, {
     bool isError = true,
   }) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor:
-            isError
-                ? const Color(0xFFB3261E)
-                : const Color(0xFF2E7D32),
+        backgroundColor: isError
+            ? const Color(0xFFB3261E)
+            : const Color(0xFF2E7D32),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -422,6 +429,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // =========================================================
+  // LOGIN UI
+  // =========================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -440,12 +451,9 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
-                    // =================================================
-                    // TITLE
-                    // =================================================
-
                     const Text(
                       'Welcome Back!',
                       style: TextStyle(
@@ -469,10 +477,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 38),
 
-                    // =================================================
-                    // EMAIL
-                    // =================================================
-
                     const Text(
                       'Email Address',
                       style: TextStyle(
@@ -486,7 +490,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     TextFormField(
                       controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
+                      keyboardType:
+                          TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       decoration: _inputDecoration(
                         hintText: 'Enter your email',
@@ -508,10 +513,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 24),
 
-                    // =================================================
-                    // PASSWORD
-                    // =================================================
-
                     const Text(
                       'Password',
                       style: TextStyle(
@@ -528,13 +529,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) {
-                        if (!_isLoading) {
+                        if (!_isLoading &&
+                            !_isGoogleLoading) {
                           _login();
                         }
                       },
                       decoration: _inputDecoration(
                         hintText: 'Enter your password',
-                        prefixIcon: Icons.lock_outline_rounded,
+                        prefixIcon:
+                            Icons.lock_outline_rounded,
                         suffixIcon: IconButton(
                           onPressed: () {
                             setState(() {
@@ -544,14 +547,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                           icon: Icon(
                             _obscurePassword
-                                ? Icons.visibility_off_outlined
+                                ? Icons
+                                    .visibility_off_outlined
                                 : Icons.visibility_outlined,
-                            color: const Color(0xFF5F5B66),
+                            color:
+                                const Color(0xFF5F5B66),
                           ),
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
+                        if (value == null ||
+                            value.isEmpty) {
                           return 'Please enter your password';
                         }
 
@@ -565,10 +571,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 12),
 
-                    // =================================================
-                    // REMEMBER ME + FORGOT PASSWORD
-                    // =================================================
-
                     Row(
                       children: [
                         SizedBox(
@@ -579,7 +581,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             activeColor: primaryRed,
                             onChanged: (value) {
                               setState(() {
-                                _rememberMe = value ?? false;
+                                _rememberMe =
+                                    value ?? false;
                               });
                             },
                           ),
@@ -621,16 +624,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 22),
 
-                    // =================================================
-                    // SIGN IN BUTTON
-                    // =================================================
-
                     SizedBox(
                       width: double.infinity,
                       height: 58,
                       child: ElevatedButton(
                         onPressed:
-                            _isLoading ? null : _login,
+                            (_isLoading || _isGoogleLoading)
+                                ? null
+                                : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryRed,
                           foregroundColor: Colors.white,
@@ -658,18 +659,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'Sign In',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  fontWeight:
-                                      FontWeight.w700,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                       ),
                     ),
 
                     const SizedBox(height: 30),
-
-                    // =================================================
-                    // DIVIDER
-                    // =================================================
 
                     const Row(
                       children: [
@@ -700,17 +696,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 24),
 
-                    // =================================================
-                    // GOOGLE SIGN IN
-                    // =================================================
-
                     SizedBox(
                       width: double.infinity,
                       height: 58,
                       child: OutlinedButton(
-                        onPressed: _isGoogleLoading
-                            ? null
-                            : _googleSignIn,
+                        onPressed:
+                            (_isGoogleLoading || _isLoading)
+                                ? null
+                                : _googleSignIn,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: darkText,
                           backgroundColor: Colors.white,
@@ -743,8 +736,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     'Continue with Google',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight:
-                                          FontWeight.w700,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ],
@@ -753,10 +745,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
 
                     const SizedBox(height: 26),
-
-                    // =================================================
-                    // CREATE ACCOUNT
-                    // =================================================
 
                     Row(
                       mainAxisAlignment:
@@ -818,7 +806,7 @@ class _GoogleLogo extends StatelessWidget {
         color: Colors.white,
         shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFFE1E1E1),
+          color: Color(0xFFE1E1E1),
         ),
       ),
       child: const Text(

@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 class SearchFilterResult {
@@ -16,6 +17,15 @@ class SearchFilterResult {
     required this.size,
     required this.transactionType,
   });
+
+  static const SearchFilterResult defaults = SearchFilterResult(
+    category: 'Any',
+    location: 'Any',
+    maxPrice: double.infinity,
+    condition: 'Any',
+    size: 'Any',
+    transactionType: 'Rental',
+  );
 }
 
 class SearchFilterSheet extends StatefulWidget {
@@ -33,10 +43,11 @@ class SearchFilterSheet extends StatefulWidget {
 class _SearchFilterSheetState extends State<SearchFilterSheet> {
   static const Color primaryRed = Color(0xFFED1C24);
   static const Color darkText = Color(0xFF171717);
+  static const double sliderMaximum = 10000;
 
   String _selectedCategory = 'Any';
   String _selectedLocation = 'Any';
-  double _maxPrice = 5000;
+  double _maxPrice = double.infinity;
   String _selectedCondition = 'Any';
   String _selectedSize = 'Any';
   String _transactionType = 'Rental';
@@ -45,46 +56,49 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
     'Any',
     'Cricket',
     'Football',
-    'Badminton',
-    'Hockey',
+    'Volleyball',
     'Cycling',
+    'Swimming',
+    'Hockey',
+    'Badminton',
     'Camping',
   ];
 
   final List<String> _locations = [
-  'Any',
-  'Ampara',
-  'Anuradhapura',
-  'Badulla',
-  'Batticaloa',
-  'Colombo',
-  'Galle',
-  'Gampaha',
-  'Hambantota',
-  'Jaffna',
-  'Kalutara',
-  'Kandy',
-  'Kegalle',
-  'Kilinochchi',
-  'Kurunegala',
-  'Mannar',
-  'Matale',
-  'Matara',
-  'Monaragala',
-  'Mullaitivu',
-  'Nuwara Eliya',
-  'Polonnaruwa',
-  'Puttalam',
-  'Ratnapura',
-  'Trincomalee',
-  'Vavuniya',
-];
+    'Any',
+    'Ampara',
+    'Anuradhapura',
+    'Badulla',
+    'Batticaloa',
+    'Colombo',
+    'Galle',
+    'Gampaha',
+    'Hambantota',
+    'Jaffna',
+    'Kalutara',
+    'Kandy',
+    'Kegalle',
+    'Kilinochchi',
+    'Kurunegala',
+    'Mannar',
+    'Matale',
+    'Matara',
+    'Monaragala',
+    'Mullaitivu',
+    'Nuwara Eliya',
+    'Polonnaruwa',
+    'Puttalam',
+    'Ratnapura',
+    'Trincomalee',
+    'Vavuniya',
+  ];
 
   final List<String> _conditions = [
     'Any',
     'New',
     'Like New',
     'Good',
+    'Fair',
   ];
 
   final List<String> _sizes = [
@@ -92,26 +106,29 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
     'Small',
     'Medium',
     'Large',
+    'Standard',
+    'SH',
   ];
 
   @override
   void initState() {
     super.initState();
-
-    final SearchFilterResult? filter = widget.initialFilter;
-
-    if (filter != null) {
-      _selectedCategory = filter.category;
-      _selectedLocation = filter.location;
-      _maxPrice = filter.maxPrice;
-      _selectedCondition = filter.condition;
-      _selectedSize = filter.size;
-      _transactionType = filter.transactionType;
-    }
+    _loadFilter(
+      widget.initialFilter ?? SearchFilterResult.defaults,
+    );
   }
 
-  void _applyFilters() {
-    final SearchFilterResult result = SearchFilterResult(
+  void _loadFilter(SearchFilterResult filter) {
+    _selectedCategory = filter.category;
+    _selectedLocation = filter.location;
+    _maxPrice = filter.maxPrice;
+    _selectedCondition = filter.condition;
+    _selectedSize = filter.size;
+    _transactionType = filter.transactionType;
+  }
+
+  SearchFilterResult _createResult() {
+    return SearchFilterResult(
       category: _selectedCategory,
       location: _selectedLocation,
       maxPrice: _maxPrice,
@@ -119,21 +136,50 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
       size: _selectedSize,
       transactionType: _transactionType,
     );
+  }
 
-    Navigator.pop(context, result);
+  void _applyFilters() {
+    Navigator.pop(context, _createResult());
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _loadFilter(SearchFilterResult.defaults);
+    });
+  }
+
+  String _formatPrice(double price) {
+    if (price.isInfinite || price >= sliderMaximum) {
+      return 'Any price';
+    }
+
+    final formatted = price.round().toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => ',',
+    );
+
+    return 'Rs. $formatted';
+  }
+
+  bool get _hasActiveFilters {
+    return _selectedCategory != 'Any' ||
+        _selectedLocation != 'Any' ||
+        _maxPrice.isFinite ||
+        _selectedCondition != 'Any' ||
+        _selectedSize != 'Any' ||
+        _transactionType != 'Rental';
   }
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+
     return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
-      ),
+      constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(28),
-          topRight: Radius.circular(28),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
         ),
       ),
       child: SafeArea(
@@ -141,8 +187,6 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-
-            // Small top handle
             Container(
               width: 42,
               height: 4,
@@ -151,14 +195,9 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            // Header
+            const SizedBox(height: 12),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   const Expanded(
@@ -171,80 +210,67 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                       ),
                     ),
                   ),
-
-                  IconButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: darkText,
+                  if (_hasActiveFilters)
+                    TextButton(
+                      onPressed: _resetFilters,
+                      child: const Text(
+                        'Reset',
+                        style: TextStyle(color: primaryRed),
+                      ),
                     ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
                   ),
                 ],
               ),
             ),
-
-            const Divider(
-              height: 1,
-              color: Color(0xFFEEEEEE),
-            ),
-
+            const Divider(height: 1),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  20,
-                  20,
-                  20,
-                  20,
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // SPORT CATEGORY
                     _buildLabel('Sport Category'),
-
                     const SizedBox(height: 8),
-
                     _buildDropdown(
                       value: _selectedCategory,
                       items: _categories,
                       onChanged: (value) {
-                        if (value == null) return;
-
                         setState(() {
                           _selectedCategory = value;
                         });
                       },
                     ),
-
                     const SizedBox(height: 20),
 
-                    // LOCATION
                     _buildLabel('Location'),
-
                     const SizedBox(height: 8),
-
                     _buildDropdown(
                       value: _selectedLocation,
                       items: _locations,
                       onChanged: (value) {
-                        if (value == null) return;
-
                         setState(() {
                           _selectedLocation = value;
                         });
                       },
                     ),
-
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Location filtering requires location data in equipment listings.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF888888),
+                      ),
+                    ),
                     const SizedBox(height: 20),
 
-                    // PRICE RANGE
                     Row(
                       children: [
                         const Expanded(
                           child: Text(
-                            'Price Range (Per Day)',
+                            'Maximum Price (Per Day)',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -252,11 +278,8 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                             ),
                           ),
                         ),
-
                         Text(
-                          _maxPrice >= 10000
-                              ? 'Rs. 10,000+'
-                              : 'Rs. ${_maxPrice.round()}',
+                          _formatPrice(_maxPrice),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -265,89 +288,73 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 5),
-
+                    const SizedBox(height: 8),
                     Slider(
-                      value: _maxPrice,
+                      value: _maxPrice.isInfinite
+                          ? sliderMaximum
+                          : _maxPrice.clamp(0.0, sliderMaximum),
                       min: 0,
-                      max: 10000,
-                      divisions: 20,
+                      max: sliderMaximum,
+                      divisions: 100,
                       activeColor: primaryRed,
                       inactiveColor: const Color(0xFFE5E5E5),
                       onChanged: (value) {
                         setState(() {
-                          _maxPrice = value;
+                          _maxPrice = value >= sliderMaximum
+                              ? double.infinity
+                              : value;
                         });
                       },
                     ),
-
                     const Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           'Rs. 0',
                           style: TextStyle(
-                            color: Color(0xFF888888),
                             fontSize: 11,
+                            color: Color(0xFF888888),
                           ),
                         ),
                         Text(
-                          'Rs. 10,000+',
+                          'Any price',
                           style: TextStyle(
-                            color: Color(0xFF888888),
                             fontSize: 11,
+                            color: Color(0xFF888888),
                           ),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 20),
 
-                    // CONDITION
                     _buildLabel('Condition'),
-
                     const SizedBox(height: 8),
-
                     _buildDropdown(
                       value: _selectedCondition,
                       items: _conditions,
                       onChanged: (value) {
-                        if (value == null) return;
-
                         setState(() {
                           _selectedCondition = value;
                         });
                       },
                     ),
-
                     const SizedBox(height: 20),
 
-                    // SIZE
                     _buildLabel('Size'),
-
                     const SizedBox(height: 8),
-
                     _buildDropdown(
                       value: _selectedSize,
                       items: _sizes,
                       onChanged: (value) {
-                        if (value == null) return;
-
                         setState(() {
                           _selectedSize = value;
                         });
                       },
                     ),
-
                     const SizedBox(height: 20),
 
-                    // TRANSACTION TYPE
                     _buildLabel('Transaction Type'),
-
                     const SizedBox(height: 10),
-
                     Row(
                       children: [
                         Expanded(
@@ -356,9 +363,7 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                             value: 'Rental',
                           ),
                         ),
-
                         const SizedBox(width: 10),
-
                         Expanded(
                           child: _buildTransactionOption(
                             title: 'Exchange',
@@ -367,13 +372,49 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 28),
-
-                    // APPLY BUTTON
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Exchange filtering requires transaction type data in Firestore.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF888888),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Color(0xFFEEEEEE)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: _resetFilters,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryRed,
+                          side: const BorderSide(color: primaryRed),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Reset'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 50,
                       child: ElevatedButton(
                         onPressed: _applyFilters,
                         style: ElevatedButton.styleFrom(
@@ -381,23 +422,19 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         child: const Text(
                           'Apply Filters',
                           style: TextStyle(
-                            fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 10),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -406,9 +443,9 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(String label) {
     return Text(
-      text,
+      label,
       style: const TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w700,
@@ -420,23 +457,21 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
   Widget _buildDropdown({
     required String value,
     required List<String> items,
-    required ValueChanged<String?> onChanged,
+    required ValueChanged<String> onChanged,
   }) {
+    final selectedValue = items.contains(value) ? value : 'Any';
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFFE0E0E0),
-        ),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: selectedValue,
           isExpanded: true,
           icon: const Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -453,7 +488,11 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
               child: Text(item),
             );
           }).toList(),
-          onChanged: onChanged,
+          onChanged: (value) {
+            if (value != null) {
+              onChanged(value);
+            }
+          },
         ),
       ),
     );
@@ -463,8 +502,7 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
     required String title,
     required String value,
   }) {
-    final bool isSelected =
-        _transactionType == value;
+    final isSelected = _transactionType == value;
 
     return InkWell(
       onTap: () {
@@ -475,9 +513,7 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         height: 50,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFFFFF0F1)
@@ -491,31 +527,24 @@ class _SearchFilterSheetState extends State<SearchFilterSheet> {
         ),
         child: Row(
           children: [
-            Radio<String>(
-              value: value,
-              groupValue: _transactionType,
-              activeColor: primaryRed,
-              materialTapTargetSize:
-                  MaterialTapTargetSize.shrinkWrap,
-              onChanged: (newValue) {
-                if (newValue == null) return;
-
-                setState(() {
-                  _transactionType = newValue;
-                });
-              },
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected
+                  ? primaryRed
+                  : const Color(0xFF999999),
+              size: 20,
             ),
-
-            const SizedBox(width: 2),
-
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? primaryRed
-                    : darkText,
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? primaryRed : darkText,
+                ),
               ),
             ),
           ],

@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:rent_lanka_mobile/features/user_discovery/models/equipment_model.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/services/equipment_service.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/equipment/equipment_details_screen.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/widgets/search_filter_sheet.dart';
 
@@ -25,183 +27,29 @@ class _CategoryEquipmentScreenState
   final TextEditingController _searchController =
       TextEditingController();
 
+  final EquipmentService _equipmentService = EquipmentService();
+
+  late Stream<List<EquipmentModel>> _equipmentStream;
+
   SearchFilterResult? _currentFilter;
 
-  final List<Map<String, dynamic>> _equipment = [
-    {
-      'name': 'SS Cricket Bat',
-      'category': 'Cricket',
-      'location': 'Colombo',
-      'condition': 'Good',
-      'size': 'Medium',
-      'price': 1200.0,
-      'priceText': 'Rs. 1,200/day',
-      'transactionType': 'Rental',
-      'rating': '4.8',
-      'owner': 'Kamal Sports Gear',
-      'description':
-          'Professional English willow cricket bat. '
-          'Used for one season. Perfect for hard tennis '
-          'or leather ball.',
-      'icon': Icons.sports_cricket,
-    },
-    {
-      'name': 'Kookaburra Ball',
-      'category': 'Cricket',
-      'location': 'Gampaha',
-      'condition': 'Like New',
-      'size': 'Small',
-      'price': 500.0,
-      'priceText': 'Rs. 500/day',
-      'transactionType': 'Rental',
-      'rating': '4.6',
-      'owner': 'Kasun',
-      'icon': Icons.sports_baseball,
-    },
-    {
-      'name': 'Cricket Helmet',
-      'category': 'Cricket',
-      'location': 'Kandy',
-      'condition': 'Good',
-      'size': 'Medium',
-      'price': 400.0,
-      'priceText': 'Rs. 400/day',
-      'transactionType': 'Rental',
-      'rating': '4.7',
-      'owner': 'Sahan',
-      'icon': Icons.sports_cricket,
-    },
-    {
-      'name': 'Batting Gloves',
-      'category': 'Cricket',
-      'location': 'Colombo',
-      'condition': 'New',
-      'size': 'Medium',
-      'price': 800.0,
-      'priceText': 'Rs. 800/day',
-      'transactionType': 'Rental',
-      'rating': '4.9',
-      'owner': 'Nimal',
-      'icon': Icons.back_hand_outlined,
-    },
-    {
-      'name': 'Wooden Stumps',
-      'category': 'Cricket',
-      'location': 'Galle',
-      'condition': 'Good',
-      'size': 'Large',
-      'price': 300.0,
-      'priceText': 'Rs. 300/day',
-      'transactionType': 'Rental',
-      'rating': '4.5',
-      'owner': 'Ravindu',
-      'icon': Icons.sports_cricket,
-    },
-    {
-      'name': 'Full Kit Bag',
-      'category': 'Cricket',
-      'location': 'Colombo',
-      'condition': 'Good',
-      'size': 'Large',
-      'price': 2000.0,
-      'priceText': 'Rs. 2,000/day',
-      'transactionType': 'Rental',
-      'rating': '4.8',
-      'owner': 'Kamal Sports Gear',
-      'icon': Icons.work_outline,
-    },
-    {
-      'name': 'Thigh Guard',
-      'category': 'Cricket',
-      'location': 'Matara',
-      'condition': 'Good',
-      'size': 'Medium',
-      'price': 250.0,
-      'priceText': 'Rs. 250/day',
-      'transactionType': 'Rental',
-      'rating': '4.4',
-      'owner': 'Akila',
-      'icon': Icons.shield_outlined,
-    },
-    {
-      'name': 'Guard',
-      'category': 'Cricket',
-      'location': 'Kalutara',
-      'condition': 'Good',
-      'size': 'Small',
-      'price': 150.0,
-      'priceText': 'Rs. 150/day',
-      'transactionType': 'Rental',
-      'rating': '4.3',
-      'owner': 'Tharindu',
-      'icon': Icons.shield,
-    },
-    {
-      'name': 'Adidas Football',
-      'category': 'Football',
-      'location': 'Colombo',
-      'condition': 'New',
-      'size': 'Medium',
-      'price': 500.0,
-      'priceText': 'Rs. 500/day',
-      'transactionType': 'Rental',
-      'rating': '4.9',
-      'owner': 'Sports Gear',
-      'icon': Icons.sports_soccer,
-    },
-    {
-      'name': 'Volleyball',
-      'category': 'Volleyball',
-      'location': 'Gampaha',
-      'condition': 'Good',
-      'size': 'Medium',
-      'price': 450.0,
-      'priceText': 'Rs. 450/day',
-      'transactionType': 'Rental',
-      'rating': '4.6',
-      'owner': 'Sports Gear',
-      'icon': Icons.sports_volleyball,
-    },
-    {
-      'name': 'Mountain Bicycle',
-      'category': 'Cycling',
-      'location': 'Kandy',
-      'condition': 'Like New',
-      'size': 'Large',
-      'price': 2500.0,
-      'priceText': 'Rs. 2,500/day',
-      'transactionType': 'Rental',
-      'rating': '4.8',
-      'owner': 'Cycle Hub',
-      'icon': Icons.pedal_bike,
-    },
-    {
-      'name': 'Swimming Goggles',
-      'category': 'Swimming',
-      'location': 'Colombo',
-      'condition': 'New',
-      'size': 'Small',
-      'price': 300.0,
-      'priceText': 'Rs. 300/day',
-      'transactionType': 'Rental',
-      'rating': '4.7',
-      'owner': 'Swim Shop',
-      'icon': Icons.pool,
-    },
-    {
-      'name': 'Hockey Stick',
-      'category': 'Hockey',
-      'location': 'Matara',
-      'condition': 'Good',
-      'size': 'Medium',
-      'price': 750.0,
-      'priceText': 'Rs. 750/day',
-      'transactionType': 'Rental',
-      'rating': '4.5',
-      'owner': 'Hockey Gear',
-      'icon': Icons.sports_hockey,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+
+    _equipmentStream =
+        _equipmentService.getEquipmentByCategory(widget.category);
+  }
+
+  @override
+  void didUpdateWidget(covariant CategoryEquipmentScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.category != widget.category) {
+      _equipmentStream =
+          _equipmentService.getEquipmentByCategory(widget.category);
+    }
+  }
 
   @override
   void dispose() {
@@ -209,53 +57,114 @@ class _CategoryEquipmentScreenState
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _filteredEquipment {
-    final String query =
-        _searchController.text.trim().toLowerCase();
+  IconData _getEquipmentIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'cricket':
+        return Icons.sports_cricket;
+      case 'football':
+        return Icons.sports_soccer;
+      case 'volleyball':
+        return Icons.sports_volleyball;
+      case 'cycling':
+        return Icons.pedal_bike;
+      case 'swimming':
+        return Icons.pool;
+      case 'hockey':
+        return Icons.sports_hockey;
+      default:
+        return Icons.sports;
+    }
+  }
 
-    return _equipment.where((item) {
-      if (item['category'] != widget.category) {
+  String _formatPrice(double price) {
+    final value = price.toStringAsFixed(0);
+
+    final formatted = value.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => ',',
+    );
+
+    return 'Rs. $formatted/day';
+  }
+
+  Map<String, dynamic> _equipmentToMap(EquipmentModel equipment) {
+    return {
+      'id': equipment.id,
+      'name': equipment.name,
+      'category': equipment.category,
+      'brand': equipment.brand,
+      'price': _formatPrice(equipment.pricePerDay),
+      'priceText': _formatPrice(equipment.pricePerDay),
+      'pricePerDay': equipment.pricePerDay,
+      'condition': equipment.condition,
+      'size': equipment.size,
+      'imageUrl': equipment.imageUrl,
+      'providerId': equipment.providerId,
+      'owner': 'Equipment Provider',
+      'rating': 'N/A',
+      'reviews': '0',
+      'description': '',
+      'icon': _getEquipmentIcon(equipment.category),
+      'isAvailable': equipment.isAvailable,
+      'status': equipment.status,
+      'unavailableDates': equipment.unavailableDates,
+    };
+  }
+
+  List<EquipmentModel> _applyFilters(
+    List<EquipmentModel> equipmentList,
+  ) {
+    final query = _searchController.text.trim().toLowerCase();
+
+    return equipmentList.where((equipment) {
+      if (query.isNotEmpty) {
+        final searchableText =
+            '${equipment.name} ${equipment.category} ${equipment.brand}'
+                .toLowerCase();
+
+        if (!searchableText.contains(query)) {
+          return false;
+        }
+      }
+
+      final filter = _currentFilter;
+
+      if (filter == null) return true;
+
+      if (filter.category != 'Any' &&
+          equipment.category.toLowerCase() !=
+              filter.category.toLowerCase()) {
         return false;
       }
 
-      final String name =
-          (item['name'] as String).toLowerCase();
-
-      if (query.isNotEmpty && !name.contains(query)) {
+      if (equipment.pricePerDay > filter.maxPrice) {
         return false;
       }
 
-      final SearchFilterResult? filter = _currentFilter;
+      if (filter.condition != 'Any' &&
+          equipment.condition.toLowerCase() !=
+              filter.condition.toLowerCase()) {
+        return false;
+      }
 
-      if (filter != null) {
-        if (filter.category != 'Any' &&
-            item['category'] != filter.category) {
-          return false;
-        }
+      if (filter.size != 'Any' &&
+          equipment.size.toLowerCase() !=
+              filter.size.toLowerCase()) {
+        return false;
+      }
 
-        if (filter.location != 'Any' &&
-            item['location'] != filter.location) {
-          return false;
-        }
+      // Firestore equipment documents currently do not contain
+      // location or transactionType fields.
+      // Avoid assuming missing values are real data.
+      if (filter.location != 'Any') {
+        return false;
+      }
 
-        if ((item['price'] as double) > filter.maxPrice) {
-          return false;
-        }
-
-        if (filter.condition != 'Any' &&
-            item['condition'] != filter.condition) {
-          return false;
-        }
-
-        if (filter.size != 'Any' &&
-            item['size'] != filter.size) {
-          return false;
-        }
-
-        if (item['transactionType'] !=
-            filter.transactionType) {
-          return false;
-        }
+      // Current Firestore records use pricePerDay, indicating
+      // a rental price, but no explicit transactionType exists.
+      // Do not include records for exchange-only filters.
+      if (filter.transactionType.toLowerCase() == 'exchange') {
+        return false;
       }
 
       return true;
@@ -268,7 +177,7 @@ class _CategoryEquipmentScreenState
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (_) {
         return SearchFilterSheet(
           initialFilter: _currentFilter,
         );
@@ -282,14 +191,12 @@ class _CategoryEquipmentScreenState
     });
   }
 
-  void _openEquipmentDetails(
-    Map<String, dynamic> item,
-  ) {
+  void _openEquipmentDetails(EquipmentModel equipment) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EquipmentDetailsScreen(
-          equipment: item,
+        builder: (_) => EquipmentDetailsScreen(
+          equipment: _equipmentToMap(equipment),
         ),
       ),
     );
@@ -297,9 +204,6 @@ class _CategoryEquipmentScreenState
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> results =
-        _filteredEquipment;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       appBar: AppBar(
@@ -307,9 +211,7 @@ class _CategoryEquipmentScreenState
         surfaceTintColor: const Color(0xFFFFF0F1),
         elevation: 0,
         leading: IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
             color: darkText,
@@ -341,9 +243,32 @@ class _CategoryEquipmentScreenState
         children: [
           _buildSearchSection(),
           Expanded(
-            child: results.isEmpty
-                ? _buildEmptyState()
-                : _buildEquipmentGrid(results),
+            child: StreamBuilder<List<EquipmentModel>>(
+              stream: _equipmentStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: primaryRed,
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return _buildErrorState(snapshot.error);
+                }
+
+                final equipmentList =
+                    _applyFilters(snapshot.data ?? []);
+
+                if (equipmentList.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return _buildEquipmentGrid(equipmentList);
+              },
+            ),
           ),
         ],
       ),
@@ -353,160 +278,237 @@ class _CategoryEquipmentScreenState
   Widget _buildSearchSection() {
     return Container(
       color: const Color(0xFFFFF0F1),
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        16,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 46,
-              child: TextField(
-                controller: _searchController,
-                onChanged: (_) {
-                  setState(() {});
-                },
-                decoration: InputDecoration(
-                  hintText:
-                      'Search by equipment, sport...',
-                  hintStyle: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF999999),
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    color: primaryRed,
-                    size: 20,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 12,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(25),
-                    borderSide: const BorderSide(
-                      color: primaryRed,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(25),
-                    borderSide: const BorderSide(
-                      color: primaryRed,
-                      width: 1.5,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Search by equipment, sport...',
+                      hintStyle: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF999999),
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: primaryRed,
+                        size: 20,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: const BorderSide(color: primaryRed),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: const BorderSide(
+                          color: primaryRed,
+                          width: 1.5,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              onPressed: _openFilterSheet,
-              icon: const Icon(
-                Icons.tune_rounded,
-                color: Color(0xFF777777),
-                size: 20,
+              const SizedBox(width: 10),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  onPressed: _openFilterSheet,
+                  icon: const Icon(
+                    Icons.tune_rounded,
+                    color: Color(0xFF777777),
+                    size: 20,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildEquipmentGrid(
-    List<Map<String, dynamic>> results,
-  ) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(14),
-      itemCount: results.length,
-      gridDelegate:
-          const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.76,
-      ),
-      itemBuilder: (context, index) {
-        final Map<String, dynamic> item = results[index];
+  Widget _buildEquipmentGrid(List<EquipmentModel> results) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
 
-        return InkWell(
-          onTap: () {
-            _openEquipmentDetails(item);
-          },
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFAFAFA),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(14),
-                        topRight: Radius.circular(14),
-                      ),
-                    ),
-                    child: Icon(
-                      item['icon'] as IconData,
-                      size: 65,
-                      color: const Color(0xFF555555),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(9),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['name'] as String,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: darkText,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item['priceText'] as String,
-                        style: const TextStyle(
-                          color: primaryRed,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+        final columns = width < 520
+            ? 2
+            : width < 800
+                ? 3
+                : width < 1100
+                    ? 4
+                    : 5;
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: GridView.builder(
+              padding: const EdgeInsets.all(14),
+              itemCount: results.length,
+              gridDelegate:
+                  SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 14,
+                mainAxisExtent: width < 520 ? 235 : 260,
+              ),
+              itemBuilder: (context, index) {
+                return _buildEquipmentCard(results[index]);
+              },
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildEquipmentCard(EquipmentModel equipment) {
+    final imageUrl = equipment.imageUrl.trim();
+    final hasImage = imageUrl.startsWith('https://') ||
+        imageUrl.startsWith('http://');
+
+    return InkWell(
+      onTap: () => _openEquipmentDetails(equipment),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFEEEEEE)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(14),
+                  topRight: Radius.circular(14),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  color: const Color(0xFFFAFAFA),
+                  child: hasImage
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Icon(
+                            _getEquipmentIcon(equipment.category),
+                            size: 60,
+                            color: const Color(0xFF555555),
+                          ),
+                        )
+                      : Icon(
+                          _getEquipmentIcon(equipment.category),
+                          size: 60,
+                          color: const Color(0xFF555555),
+                        ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    equipment.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: darkText,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _formatPrice(equipment.pricePerDay),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: primaryRed,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 13,
+                        color: Colors.green,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Available',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF888888),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(Object? error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 52,
+              color: primaryRed,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load equipment',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -9,6 +9,7 @@ import 'package:rent_lanka_mobile/features/user_discovery/screens/search/search_
 import 'package:rent_lanka_mobile/features/user_discovery/screens/search/search_results_screen.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/search/category_equipment_screen.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/equipment/equipment_details_screen.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/favourites/my_favourites_screen.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/widgets/search_filter_sheet.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/widgets/app_side_menu.dart';
@@ -121,6 +122,15 @@ class _HomeScreenState extends State<HomeScreen> {
       'status': equipment.status,
       'unavailableDates': equipment.unavailableDates,
     };
+  }
+
+  void _openFavouritesScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MyFavouritesScreen(),
+      ),
+    );
   }
 
   void _openSearchScreen() {
@@ -330,6 +340,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    tooltip: 'My Favourites',
+                    onPressed: _openFavouritesScreen,
+                    icon: const Icon(
+                      Icons.favorite_border_rounded,
+                      color: primaryRed,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
               Container(
                 width: 42,
                 height: 42,
@@ -616,8 +644,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final String imageUrl = equipment.imageUrl.trim();
 
     final bool hasImage =
-        imageUrl.startsWith('https://') ||
-        imageUrl.startsWith('http://');
+        imageUrl.startsWith('https\://') ||
+        imageUrl.startsWith('http\://');
 
     return InkWell(
       onTap: () {

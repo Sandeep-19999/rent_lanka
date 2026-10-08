@@ -1,5 +1,9 @@
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:rent_lanka_mobile/features/user_discovery/services/favourite_service.dart';
 
 class EquipmentDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> equipment;
@@ -19,53 +23,190 @@ class _EquipmentDetailsScreenState
   static const Color primaryRed = Color(0xFFED1C24);
   static const Color darkText = Color(0xFF171717);
 
-  bool _isFavourite = false;
+  final FavouriteService _favouriteService = FavouriteService();
 
-  String get _name =>
-      widget.equipment['name']?.toString() ?? 'Equipment';
+  bool _isSavingFavourite = false;
 
-  String get _price =>
-      widget.equipment['priceText']?.toString() ??
-      widget.equipment['price']?.toString() ??
-      'Price unavailable';
+  String _text(
+    Map<String, dynamic> data,
+    String key, [
+    String fallback = '',
+  ]) {
+    final value = data[key];
 
-  String get _condition =>
-      widget.equipment['condition']?.toString() ?? 'Good';
+    if (value == null) return fallback;
 
-  String get _size =>
-      widget.equipment['size']?.toString() ?? 'Standard';
+    final result = value.toString().trim();
 
-  String get _rating =>
-      widget.equipment['rating']?.toString() ?? '4.8';
+    return result.isEmpty ? fallback : result;
+  }
 
-  String get _owner =>
-      widget.equipment['owner']?.toString() ??
-      'Kamal Sports Gear';
+  String _price(Map<String, dynamic> data) {
+    final rawPrice = data['pricePerDay'];
 
-  String get _description =>
-      widget.equipment['description']?.toString() ??
-      'Well-maintained sports equipment suitable for '
-          'training and recreational activities. '
-          'Contact the equipment owner for more details.';
+    if (rawPrice is num) {
+      final formatted = rawPrice.toStringAsFixed(0).replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (match) => ',',
+      );
 
-  IconData get _equipmentIcon =>
-      widget.equipment['icon'] is IconData
-          ? widget.equipment['icon'] as IconData
-          : Icons.sports_cricket;
+      return 'Rs. $formatted/day';
+    }
 
-  void _showComingSoon(String feature) {
+    return _text(
+      data,
+      'priceText',
+      _text(data, 'price', 'Price unavailable'),
+    );
+  }
+
+  bool _isAvailable(Map<String, dynamic> data) {
+    if (data['isAvailable'] is bool) {
+      return data['isAvailable'] as bool;
+    }
+
+    final status = _text(data, 'status').toLowerCase();
+
+    return status == 'available';
+  }
+
+  IconData _equipmentIcon(Map<String, dynamic> data) {
+    if (data['icon'] is IconData) {
+      return data['icon'] as IconData;
+    }
+
+    switch (_text(data, 'category').toLowerCase()) {
+      case 'cricket':
+        return Icons.sports_cricket;
+      case 'football':
+        return Icons.sports_soccer;
+      case 'volleyball':
+        return Icons.sports_volleyball;
+      case 'cycling':
+        return Icons.pedal_bike;
+      case 'swimming':
+        return Icons.pool;
+      case 'hockey':
+        return Icons.sports_hockey;
+      default:
+        return Icons.sports;
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '$feature will be connected during module integration.',
-        ),
+        content: Text(message),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
+  void _showComingSoon(String feature) {
+    _showMessage(
+      '$feature will be connected during module integration.',
+    );
+  }
+
+  Future<void> _toggleFavourite(
+    String equipmentId,
+    bool currentlyFavourite,
+  ) async {
+    if (_isSavingFavourite) return;
+
+    if (FirebaseAuth.instance.currentUser == null) {
+      _showMessage('Please log in to save favourites.');
+      return;
+    }
+
+    if (equipmentId.isEmpty) {
+      _showMessage('Unable to save: equipment ID is missing.');
+      return;
+    }
+
+    setState(() {
+      _isSavingFavourite = true;
+    });
+
+    try {
+      await _favouriteService.toggleFavourite(
+        equipmentId,
+        currentlyFavourite,
+      );
+
+      _showMessage(
+        currentlyFavourite
+            ? 'Removed from favourites'
+            : 'Added to favourites',
+      );
+    } catch (error) {
+      _showMessage(
+        'Unable to update favourites. Check your connection and permissions.',
+      );
+      debugPrint('Favourite update failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingFavourite = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final equipmentId = _text(widget.equipment, 'id');
+
+    if (equipmentId.isEmpty) {
+      return _buildPage(widget.equipment);
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('equipment')
+          .doc(equipmentId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _buildPage(
+            widget.equipment,
+            notice: 'Unable to refresh equipment details.',
+          );
+        }
+
+        if (snapshot.hasData && !snapshot.data!.exists) {
+          return _buildPage(
+            widget.equipment,
+            notice: 'This equipment listing is no longer available.',
+            listingUnavailable: true,
+          );
+        }
+
+        final liveData = snapshot.data?.data();
+
+        final equipment = <String, dynamic>{
+          ...widget.equipment,
+          if (liveData != null) ...liveData,
+          'id': equipmentId,
+        };
+
+        return _buildPage(
+          equipment,
+          isRefreshing:
+              snapshot.connectionState == ConnectionState.waiting,
+        );
+      },
+    );
+  }
+
+  Widget _buildPage(
+    Map<String, dynamic> equipment, {
+    String? notice,
+    bool isRefreshing = false,
+    bool listingUnavailable = false,
+  }) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -74,47 +215,64 @@ class _EquipmentDetailsScreenState
             constraints: const BoxConstraints(maxWidth: 600),
             child: Column(
               children: [
+                if (isRefreshing)
+                  const LinearProgressIndicator(
+                    color: primaryRed,
+                    minHeight: 2,
+                  ),
+                if (notice != null)
+                  Container(
+                    width: double.infinity,
+                    color: const Color(0xFFFFF4E5),
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      notice,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildEquipmentImage(),
+                        _buildEquipmentImage(equipment),
                         Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(
+                          padding: const EdgeInsets.fromLTRB(
                             20,
                             18,
                             20,
                             24,
                           ),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildNameAndPrice(),
+                              _buildNameAndPrice(equipment),
+                              const SizedBox(height: 14),
+                              _buildAvailability(equipment),
                               const SizedBox(height: 15),
-                              _buildRating(),
+                              _buildRating(equipment),
                               const SizedBox(height: 18),
-                              _buildProviderCard(),
+                              _buildProviderCard(equipment),
                               const SizedBox(height: 22),
                               const Text(
                                 'Description',
                                 style: TextStyle(
                                   fontSize: 17,
-                                  fontWeight:
-                                      FontWeight.w800,
+                                  fontWeight: FontWeight.w800,
                                   color: darkText,
                                 ),
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                _description,
+                                _text(
+                                  equipment,
+                                  'description',
+                                  'No description provided.',
+                                ),
                                 style: const TextStyle(
                                   fontSize: 13,
-                                  color:
-                                      Color(0xFF888888),
+                                  color: Color(0xFF888888),
                                   height: 1.6,
                                 ),
                               ),
@@ -125,7 +283,10 @@ class _EquipmentDetailsScreenState
                     ),
                   ),
                 ),
-                _buildBottomButtons(),
+                _buildBottomButtons(
+                  equipment,
+                  listingUnavailable: listingUnavailable,
+                ),
               ],
             ),
           ),
@@ -134,27 +295,37 @@ class _EquipmentDetailsScreenState
     );
   }
 
-  Widget _buildEquipmentImage() {
+  Widget _buildEquipmentImage(
+    Map<String, dynamic> equipment,
+  ) {
+    final imageUrl = _text(equipment, 'imageUrl');
+    final equipmentId = _text(equipment, 'id');
+
+    final hasImage = imageUrl.startsWith('https://') ||
+        imageUrl.startsWith('http://');
+
     return Container(
       height: 340,
       width: double.infinity,
       color: const Color(0xFFFAFAFA),
       child: Stack(
         children: [
-          Center(
-            child: Icon(
-              _equipmentIcon,
-              size: 155,
-              color: const Color(0xFF707070),
-            ),
+          Positioned.fill(
+            child: hasImage
+                ? Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, error, stackTrace) {
+                      return _buildImagePlaceholder(equipment);
+                    },
+                  )
+                : _buildImagePlaceholder(equipment),
           ),
           Positioned(
             top: 16,
             left: 14,
             child: IconButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               icon: const Icon(
                 Icons.arrow_back_ios_new_rounded,
                 size: 21,
@@ -165,48 +336,157 @@ class _EquipmentDetailsScreenState
           Positioned(
             top: 16,
             right: 14,
-            child: IconButton(
-              onPressed: () {
-                setState(() {
-                  _isFavourite = !_isFavourite;
-                });
-              },
-              icon: Icon(
-                _isFavourite
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                color: _isFavourite
-                    ? primaryRed
-                    : darkText,
-                size: 24,
-              ),
-            ),
+            child: _buildFavouriteButton(equipmentId),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNameAndPrice() {
+  Widget _buildFavouriteButton(String equipmentId) {
+    if (equipmentId.isEmpty) {
+      return const IconButton(
+        onPressed: null,
+        icon: Icon(Icons.favorite_border_rounded),
+        tooltip: 'Equipment ID unavailable',
+      );
+    }
+
+    if (FirebaseAuth.instance.currentUser == null) {
+      return IconButton(
+        tooltip: 'Log in to save favourites',
+        onPressed: () {
+          _showMessage('Please log in to save favourites.');
+        },
+        icon: const Icon(
+          Icons.favorite_border_rounded,
+          color: darkText,
+          size: 24,
+        ),
+      );
+    }
+
+    return StreamBuilder<bool>(
+      stream: _favouriteService.isFavourite(equipmentId),
+      builder: (context, snapshot) {
+        final isFavourite = snapshot.data ?? false;
+
+        if (snapshot.hasError) {
+          return IconButton(
+            tooltip: 'Unable to load favourite status',
+            onPressed: () {
+              _showMessage(
+                'Unable to load favourites. Check Firestore permissions.',
+              );
+            },
+            icon: const Icon(
+              Icons.favorite_border_rounded,
+              color: Colors.grey,
+              size: 24,
+            ),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: primaryRed,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return IconButton(
+          tooltip: isFavourite
+              ? 'Remove from favourites'
+              : 'Add to favourites',
+          onPressed: _isSavingFavourite
+              ? null
+              : () => _toggleFavourite(
+                    equipmentId,
+                    isFavourite,
+                  ),
+          icon: _isSavingFavourite
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: primaryRed,
+                  ),
+                )
+              : Icon(
+                  isFavourite
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: isFavourite ? primaryRed : darkText,
+                  size: 24,
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildImagePlaceholder(
+    Map<String, dynamic> equipment,
+  ) {
+    return Center(
+      child: Icon(
+        _equipmentIcon(equipment),
+        size: 155,
+        color: const Color(0xFF707070),
+      ),
+    );
+  }
+
+  Widget _buildNameAndPrice(
+    Map<String, dynamic> equipment,
+  ) {
+    final name = _text(equipment, 'name', 'Equipment');
+    final brand = _text(equipment, 'brand');
+    final size = _text(equipment, 'size', 'Not specified');
+    final condition = _text(
+      equipment,
+      'condition',
+      'Not specified',
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _name,
+                name,
                 style: const TextStyle(
                   fontSize: 23,
                   fontWeight: FontWeight.w800,
                   color: darkText,
                 ),
               ),
-              const SizedBox(height: 4),
+              if (brand.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Brand: $brand',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF777777),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 5),
               Text(
-                'Size: $_size | $_condition Condition',
+                'Size: $size | $condition Condition',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF888888),
@@ -216,23 +496,55 @@ class _EquipmentDetailsScreenState
           ),
         ),
         const SizedBox(width: 10),
-        Text(
-          _price,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: primaryRed,
+        Flexible(
+          child: Text(
+            _price(equipment),
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: primaryRed,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRating() {
+  Widget _buildAvailability(
+    Map<String, dynamic> equipment,
+  ) {
+    final available = _isAvailable(equipment);
+
+    return Row(
+      children: [
+        Icon(
+          available
+              ? Icons.check_circle_outline
+              : Icons.cancel_outlined,
+          size: 17,
+          color: available ? Colors.green : primaryRed,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          available ? 'Available' : 'Currently unavailable',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: available ? Colors.green : primaryRed,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRating(Map<String, dynamic> equipment) {
+    final rating = _text(equipment, 'rating', 'N/A');
+
     return Row(
       children: [
         const Text(
-          'Rate this equipment',
+          'Equipment rating',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
@@ -258,7 +570,7 @@ class _EquipmentDetailsScreenState
               ),
               const SizedBox(width: 3),
               Text(
-                _rating,
+                rating,
                 style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFFE99700),
@@ -272,11 +584,56 @@ class _EquipmentDetailsScreenState
     );
   }
 
-  Widget _buildProviderCard() {
-    return InkWell(
-      onTap: () {
-        _showComingSoon('Provider profile');
+  Widget _buildProviderCard(
+    Map<String, dynamic> equipment,
+  ) {
+    final providerId = _text(equipment, 'providerId');
+
+    if (providerId.isEmpty) {
+      return _providerTile(
+        'Provider information unavailable',
+      );
+    }
+
+    return StreamBuilder<
+        DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(providerId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _providerTile('Equipment Provider');
+        }
+
+        final userData = snapshot.data?.data();
+
+        if (userData == null) {
+          return _providerTile('Equipment Provider');
+        }
+
+        String providerName = _text(userData, 'name');
+
+        if (providerName.isEmpty) {
+          providerName = _text(userData, 'fullName');
+        }
+
+        if (providerName.isEmpty) {
+          providerName = _text(userData, 'displayName');
+        }
+
+        if (providerName.isEmpty) {
+          providerName = 'Equipment Provider';
+        }
+
+        return _providerTile(providerName);
       },
+    );
+  }
+
+  Widget _providerTile(String providerName) {
+    return InkWell(
+      onTap: () => _showComingSoon('Provider profile'),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(13),
@@ -300,11 +657,12 @@ class _EquipmentDetailsScreenState
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _owner,
+                    providerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -312,22 +670,12 @@ class _EquipmentDetailsScreenState
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.verified_rounded,
-                        size: 13,
-                        color: primaryRed,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Owner profile',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: primaryRed,
-                        ),
-                      ),
-                    ],
+                  const Text(
+                    'Equipment provider',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: primaryRed,
+                    ),
                   ),
                 ],
               ),
@@ -342,20 +690,19 @@ class _EquipmentDetailsScreenState
     );
   }
 
-  Widget _buildBottomButtons() {
+  Widget _buildBottomButtons(
+    Map<String, dynamic> equipment, {
+    bool listingUnavailable = false,
+  }) {
+    final available =
+        _isAvailable(equipment) && !listingUnavailable;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        18,
-        14,
-        18,
-        18,
-      ),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
-          top: BorderSide(
-            color: Color(0xFFEEEEEE),
-          ),
+          top: BorderSide(color: Color(0xFFEEEEEE)),
         ),
       ),
       child: Row(
@@ -364,17 +711,14 @@ class _EquipmentDetailsScreenState
             child: SizedBox(
               height: 52,
               child: OutlinedButton(
-                onPressed: () {
-                  _showComingSoon('Exchange request');
-                },
+                onPressed: available
+                    ? () => _showComingSoon('Exchange request')
+                    : null,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: primaryRed,
-                  side: const BorderSide(
-                    color: primaryRed,
-                  ),
+                  side: const BorderSide(color: primaryRed),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: const Text(
@@ -392,16 +736,15 @@ class _EquipmentDetailsScreenState
             child: SizedBox(
               height: 52,
               child: ElevatedButton(
-                onPressed: () {
-                  _showComingSoon('Equipment booking');
-                },
+                onPressed: available
+                    ? () => _showComingSoon('Equipment booking')
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryRed,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: const Text(
