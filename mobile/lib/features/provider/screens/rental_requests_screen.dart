@@ -502,18 +502,20 @@
 //     );
 //   }
 // }
-
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../models/rental_request_model.dart';
+import '../services/rental_request_service.dart';
+
 import 'request_details_screen.dart';
-import '../../services/auth_service.dart';
 
 class RentalRequestsScreen extends StatelessWidget {
   const RentalRequestsScreen({super.key});
 
   static const Color primaryRed = Color(0xFFED1235);
+
+  static final RentalRequestService _requestService =
+      RentalRequestService();
 
   @override
   Widget build(BuildContext context) {
@@ -569,20 +571,12 @@ class RentalRequestsScreen extends StatelessWidget {
                   color: Color(0xFFEAEAEA),
                 ),
 
-                // Firestore Requests
+                // Requests
                 Expanded(
                   child: StreamBuilder<
-                      QuerySnapshot<
-                          Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection(
-                          'rental_requests',
-                        )
-                        .where(
-  'providerId',
-  isEqualTo: AuthService.providerId,
-)
-                        .snapshots(),
+                      List<RentalRequestModel>>(
+                    stream: _requestService
+                        .watchMyRentalRequests(),
                     builder: (
                       context,
                       snapshot,
@@ -610,7 +604,8 @@ class RentalRequestsScreen extends StatelessWidget {
 
                       // Loading
                       if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                              ConnectionState.waiting &&
+                          !snapshot.hasData) {
                         return const Center(
                           child:
                               CircularProgressIndicator(
@@ -619,22 +614,20 @@ class RentalRequestsScreen extends StatelessWidget {
                         );
                       }
 
-                      final documents =
-                          snapshot.data?.docs ?? [];
+                      final requests =
+                          snapshot.data ?? [];
 
-                      // No Requests
-                      if (documents.isEmpty) {
+                      // Empty
+                      if (requests.isEmpty) {
                         return const _EmptyRequests();
                       }
 
-                      // Request List
                       return ListView.separated(
                         padding:
                             const EdgeInsets.all(
                           20,
                         ),
-                        itemCount:
-                            documents.length,
+                        itemCount: requests.length,
                         separatorBuilder:
                             (context, index) {
                           return const SizedBox(
@@ -643,68 +636,12 @@ class RentalRequestsScreen extends StatelessWidget {
                         },
                         itemBuilder:
                             (context, index) {
-                          final document =
-                              documents[index];
-
-                          final data =
-                              document.data();
-
-                          final String playerName =
-                              data['playerName']
-                                      ?.toString() ??
-                                  'Player';
-
-                          final String
-                              equipmentName =
-                              data['equipmentName']
-                                      ?.toString() ??
-                                  'Equipment';
-
-                          final String startDate =
-                              data['startDate']
-                                      ?.toString() ??
-                                  '';
-
-                          final String endDate =
-                              data['endDate']
-                                      ?.toString() ??
-                                  '';
-
-                          final String status =
-                              data['status']
-                                      ?.toString()
-                                      .toLowerCase() ??
-                                  'pending';
-
-                          final amountValue =
-                              data['totalAmount'];
-
-                          final double
-                              totalAmount =
-                              amountValue is num
-                                  ? amountValue
-                                      .toDouble()
-                                  : 0;
+                          final request =
+                              requests[index];
 
                           return _requestCard(
                             context: context,
-
-                            // Firestore document ID
-                            requestId:
-                                document.id,
-
-                            playerName:
-                                playerName,
-                            equipmentName:
-                                equipmentName,
-                            startDate:
-                                startDate,
-                            endDate:
-                                endDate,
-                            totalAmount:
-                                totalAmount,
-                            status:
-                                status,
+                            request: request,
                           );
                         },
                       );
@@ -725,15 +662,10 @@ class RentalRequestsScreen extends StatelessWidget {
   // ===========================
   // REQUEST CARD
   // ===========================
+
   Widget _requestCard({
     required BuildContext context,
-    required String requestId,
-    required String playerName,
-    required String equipmentName,
-    required String startDate,
-    required String endDate,
-    required double totalAmount,
-    required String status,
+    required RentalRequestModel request,
   }) {
     return InkWell(
       onTap: () {
@@ -742,33 +674,26 @@ class RentalRequestsScreen extends StatelessWidget {
           MaterialPageRoute(
             builder: (context) =>
                 RequestDetailsScreen(
-              requestId: requestId,
+              requestId: request.id,
             ),
           ),
         );
       },
-      borderRadius:
-          BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius:
-              BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: const Color(
-              0xFFDDDDDD,
-            ),
+            color: const Color(0xFFDDDDDD),
           ),
         ),
         child: Column(
           children: [
             // Player Information
             Padding(
-              padding:
-                  const EdgeInsets.all(
-                14,
-              ),
+              padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
                   const CircleAvatar(
@@ -777,20 +702,16 @@ class RentalRequestsScreen extends StatelessWidget {
                         Color(0xFFEAEAEA),
                     child: Icon(
                       Icons.person,
-                      color:
-                          Colors.black54,
+                      color: Colors.black54,
                     ),
                   ),
 
-                  const SizedBox(
-                    width: 12,
-                  ),
+                  const SizedBox(width: 12),
 
                   Expanded(
                     child: Text(
-                      playerName,
-                      style:
-                          const TextStyle(
+                      request.playerName,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight:
                             FontWeight.w800,
@@ -799,7 +720,7 @@ class RentalRequestsScreen extends StatelessWidget {
                   ),
 
                   _statusBadge(
-                    status,
+                    request.status,
                   ),
                 ],
               ),
@@ -807,63 +728,48 @@ class RentalRequestsScreen extends StatelessWidget {
 
             const Divider(
               height: 1,
-              color: Color(
-                0xFFE5E5E5,
-              ),
+              color: Color(0xFFE5E5E5),
             ),
 
             // Rental Information
             Padding(
-              padding:
-                  const EdgeInsets.all(
-                14,
-              ),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
+                    CrossAxisAlignment.start,
                 children: [
                   Text.rich(
                     TextSpan(
                       children: [
                         const TextSpan(
-                          text:
-                              'Requested: ',
+                          text: 'Requested: ',
                           style: TextStyle(
-                            color:
-                                Colors.grey,
+                            color: Colors.grey,
                           ),
                         ),
 
                         TextSpan(
                           text:
-                              equipmentName,
-                          style:
-                              const TextStyle(
+                              request.equipmentName,
+                          style: const TextStyle(
                             fontWeight:
-                                FontWeight
-                                    .w800,
+                                FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  const SizedBox(height: 10),
 
                   Text(
-                    'Dates: $startDate - $endDate',
-                    style:
-                        const TextStyle(
+                    'Dates: ${request.startDate} - ${request.endDate}',
+                    style: const TextStyle(
                       fontSize: 13,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 15,
-                  ),
+                  const SizedBox(height: 15),
 
                   Row(
                     mainAxisAlignment:
@@ -871,24 +777,19 @@ class RentalRequestsScreen extends StatelessWidget {
                             .spaceBetween,
                     children: [
                       Text(
-                        'Rs. ${_formatPrice(totalAmount)}',
-                        style:
-                            const TextStyle(
-                          color:
-                              primaryRed,
+                        'Rs. ${_formatPrice(request.totalAmount)}',
+                        style: const TextStyle(
+                          color: primaryRed,
                           fontSize: 19,
                           fontWeight:
-                              FontWeight
-                                  .w800,
+                              FontWeight.w800,
                         ),
                       ),
 
                       const Icon(
-                        Icons
-                            .arrow_forward_ios,
+                        Icons.arrow_forward_ios,
                         size: 15,
-                        color:
-                            Colors.grey,
+                        color: Colors.grey,
                       ),
                     ],
                   ),
@@ -904,6 +805,7 @@ class RentalRequestsScreen extends StatelessWidget {
   // ===========================
   // STATUS BADGE
   // ===========================
+
   Widget _statusBadge(
     String status,
   ) {
@@ -938,8 +840,7 @@ class RentalRequestsScreen extends StatelessWidget {
       case 'rejected':
         background =
             const Color(0xFFFFE8EC);
-        textColor =
-            primaryRed;
+        textColor = primaryRed;
         break;
 
       default:
@@ -950,25 +851,20 @@ class RentalRequestsScreen extends StatelessWidget {
     }
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 6,
       ),
       decoration: BoxDecoration(
         color: background,
         borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
+            BorderRadius.circular(20),
       ),
       child: Text(
-        normalizedStatus
-            .toUpperCase(),
+        normalizedStatus.toUpperCase(),
         style: TextStyle(
           fontSize: 10,
-          fontWeight:
-              FontWeight.w700,
+          fontWeight: FontWeight.w700,
           color: textColor,
         ),
       ),
@@ -978,36 +874,31 @@ class RentalRequestsScreen extends StatelessWidget {
   // ===========================
   // PRICE FORMAT
   // ===========================
+
   String _formatPrice(
     double price,
   ) {
-    if (price ==
-        price.roundToDouble()) {
-      return price
-          .toInt()
-          .toString();
+    if (price == price.roundToDouble()) {
+      return price.toInt().toString();
     }
 
-    return price.toStringAsFixed(
-      2,
-    );
+    return price.toStringAsFixed(2);
   }
 
   // ===========================
   // BOTTOM NAVIGATION
   // ===========================
+
   Widget _buildBottomNavigation(
     BuildContext context,
   ) {
     return Container(
       height: 75,
-      decoration:
-          const BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
           top: BorderSide(
-            color:
-                Color(0xFFE8E8E8),
+            color: Color(0xFFE8E8E8),
           ),
         ),
       ),
@@ -1016,17 +907,14 @@ class RentalRequestsScreen extends StatelessWidget {
           width: 420,
           child: Row(
             mainAxisAlignment:
-                MainAxisAlignment
-                    .spaceAround,
+                MainAxisAlignment.spaceAround,
             children: [
               _BottomNavItem(
-                icon: Icons
-                    .grid_view_rounded,
+                icon:
+                    Icons.grid_view_rounded,
                 label: 'Dashboard',
                 onTap: () {
-                  Navigator.pop(
-                    context,
-                  );
+                  Navigator.pop(context);
                 },
               ),
 
@@ -1044,8 +932,8 @@ class RentalRequestsScreen extends StatelessWidget {
               ),
 
               const _BottomNavItem(
-                icon: Icons
-                    .chat_bubble_outline,
+                icon:
+                    Icons.chat_bubble_outline,
                 label: 'Messages',
               ),
 
@@ -1065,8 +953,8 @@ class RentalRequestsScreen extends StatelessWidget {
 // ===========================
 // EMPTY REQUESTS
 // ===========================
-class _EmptyRequests
-    extends StatelessWidget {
+
+class _EmptyRequests extends StatelessWidget {
   const _EmptyRequests();
 
   @override
@@ -1079,15 +967,12 @@ class _EmptyRequests
             MainAxisAlignment.center,
         children: [
           Icon(
-            Icons
-                .shopping_bag_outlined,
+            Icons.shopping_bag_outlined,
             size: 60,
             color: Colors.grey,
           ),
 
-          SizedBox(
-            height: 15,
-          ),
+          SizedBox(height: 15),
 
           Text(
             'No rental requests',
@@ -1098,9 +983,7 @@ class _EmptyRequests
             ),
           ),
 
-          SizedBox(
-            height: 6,
-          ),
+          SizedBox(height: 6),
 
           Text(
             'New requests will appear here.',
@@ -1117,8 +1000,8 @@ class _EmptyRequests
 // ===========================
 // BOTTOM NAV ITEM
 // ===========================
-class _BottomNavItem
-    extends StatelessWidget {
+
+class _BottomNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
@@ -1150,22 +1033,18 @@ class _BottomNavItem
             Icon(
               icon,
               size: 24,
-              color: active
-                  ? red
-                  : Colors.grey,
+              color:
+                  active ? red : Colors.grey,
             ),
 
-            const SizedBox(
-              height: 5,
-            ),
+            const SizedBox(height: 5),
 
             Text(
               label,
               style: TextStyle(
                 fontSize: 9,
-                color: active
-                    ? red
-                    : Colors.grey,
+                color:
+                    active ? red : Colors.grey,
                 fontWeight: active
                     ? FontWeight.w700
                     : FontWeight.w400,

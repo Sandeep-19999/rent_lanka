@@ -1,210 +1,68 @@
 import 'dart:math' as math;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/auth_service.dart';
+import '../models/equipment_performance_model.dart';
+import '../services/equipment_performance_service.dart';
 
-class EquipmentPerformanceScreen extends StatelessWidget {
-  const EquipmentPerformanceScreen({super.key});
+class EquipmentPerformanceScreen
+    extends StatelessWidget {
+  const EquipmentPerformanceScreen({
+    super.key,
+  });
 
-  static const Color primaryRed = Color(0xFFED1235);
+  static const Color primaryRed =
+      Color(0xFFED1235);
+
+  static final EquipmentPerformanceService
+      _performanceService =
+      EquipmentPerformanceService();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8FA),
+      backgroundColor:
+          const Color(0xFFF8F8FA),
+
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
+            constraints:
+                const BoxConstraints(
               maxWidth: 420,
             ),
             child: StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('equipment')
-                  .where(
-                    'providerId',
-                    isEqualTo: AuthService.providerId,
-                  )
-                  .snapshots(),
+                EquipmentPerformanceModel>(
+              stream: _performanceService
+                  .watchPerformance(),
               builder: (
                 context,
-                equipmentSnapshot,
+                snapshot,
               ) {
-                if (equipmentSnapshot.hasError) {
+                if (snapshot.hasError) {
                   return _errorScreen(
-                    'Failed to load equipment data.',
+                    'Failed to load equipment performance.',
                   );
                 }
 
-                return StreamBuilder<
-                    QuerySnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('rental_requests')
-                      .where(
-                        'providerId',
-                        isEqualTo: AuthService.providerId,
-                      )
-                      .snapshots(),
-                  builder: (
-                    context,
-                    rentalSnapshot,
-                  ) {
-                    if (rentalSnapshot.hasError) {
-                      return _errorScreen(
-                        'Failed to load rental performance.',
-                      );
-                    }
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child:
+                        CircularProgressIndicator(
+                      color: primaryRed,
+                    ),
+                  );
+                }
 
-                    if (!equipmentSnapshot.hasData ||
-                        !rentalSnapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: primaryRed,
-                        ),
-                      );
-                    }
+                final performance =
+                    snapshot.data!;
 
-                    final equipmentDocuments =
-                        equipmentSnapshot.data!.docs;
-
-                    final rentalDocuments =
-                        rentalSnapshot.data!.docs;
-
-                    final int equipmentCount =
-                        equipmentDocuments.length;
-
-                    int completedRentals = 0;
-                    int activeRentals = 0;
-
-                    double totalRevenue = 0;
-
-                    final Map<String, _EquipmentStats>
-                        equipmentStats = {};
-
-                    for (final document
-                        in equipmentDocuments) {
-                      final data =
-                          document.data();
-
-                      final String name =
-                          data['name']
-                                  ?.toString() ??
-                              'Equipment';
-
-                      equipmentStats[
-                              document.id] =
-                          _EquipmentStats(
-                        equipmentId:
-                            document.id,
-                        name: name,
-                      );
-                    }
-
-                    for (final request
-                        in rentalDocuments) {
-                      final data =
-                          request.data();
-
-                      final String status =
-                          data['status']
-                                  ?.toString()
-                                  .toLowerCase() ??
-                              '';
-
-                      final String equipmentId =
-                          data['equipmentId']
-                                  ?.toString() ??
-                              '';
-
-                      final String equipmentName =
-                          data['equipmentName']
-                                  ?.toString() ??
-                              'Equipment';
-
-                      if (status == 'active') {
-                        activeRentals++;
-                      }
-
-                      if (status ==
-                          'completed') {
-                        completedRentals++;
-
-                        final amount =
-                            data['totalAmount'];
-
-                        final double value =
-                            amount is num
-                                ? amount
-                                    .toDouble()
-                                : 0;
-
-                        totalRevenue +=
-                            value;
-
-                        if (!equipmentStats
-                            .containsKey(
-                          equipmentId,
-                        )) {
-                          equipmentStats[
-                                  equipmentId] =
-                              _EquipmentStats(
-                            equipmentId:
-                                equipmentId,
-                            name:
-                                equipmentName,
-                          );
-                        }
-
-                        final stats =
-                            equipmentStats[
-                                equipmentId];
-
-                        if (stats != null) {
-                          stats.rentals++;
-                          stats.revenue +=
-                              value;
-                        }
-                      }
-                    }
-
-                    final List<_EquipmentStats>
-                        rankedEquipment =
-                        equipmentStats.values
-                            .where(
-                              (item) =>
-                                  item.rentals >
-                                  0,
-                            )
-                            .toList()
-                          ..sort(
-                            (a, b) => b.rentals
-                                .compareTo(
-                              a.rentals,
-                            ),
-                          );
-
-                    final topThree =
-                        rankedEquipment
-                            .take(3)
-                            .toList();
-
-                    return _buildContent(
-                      context: context,
-                      equipmentCount:
-                          equipmentCount,
-                      completedRentals:
-                          completedRentals,
-                      activeRentals:
-                          activeRentals,
-                      totalRevenue:
-                          totalRevenue,
-                      topEquipment:
-                          topThree,
-                    );
-                  },
+                return _buildContent(
+                  context: context,
+                  performance:
+                      performance,
                 );
               },
             ),
@@ -216,15 +74,12 @@ class EquipmentPerformanceScreen extends StatelessWidget {
 
   Widget _buildContent({
     required BuildContext context,
-    required int equipmentCount,
-    required int completedRentals,
-    required int activeRentals,
-    required double totalRevenue,
-    required List<_EquipmentStats>
-        topEquipment,
+    required EquipmentPerformanceModel
+        performance,
   }) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
+      padding:
+          const EdgeInsets.fromLTRB(
         20,
         18,
         20,
@@ -234,23 +89,33 @@ class EquipmentPerformanceScreen extends StatelessWidget {
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
+          // =========================
+          // HEADER
+          // =========================
+
           Row(
             children: [
               IconButton(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(
+                    context,
+                  );
                 },
-                padding: EdgeInsets.zero,
+                padding:
+                    EdgeInsets.zero,
                 constraints:
                     const BoxConstraints(),
                 icon: const Icon(
-                  Icons.arrow_back_ios_new,
+                  Icons
+                      .arrow_back_ios_new,
                   size: 22,
                 ),
               ),
+
               const SizedBox(
                 width: 14,
               ),
+
               const Text(
                 'Equipment Performance',
                 style: TextStyle(
@@ -266,22 +131,26 @@ class EquipmentPerformanceScreen extends StatelessWidget {
             height: 28,
           ),
 
-          // ===============================================
+          // =========================
           // PERFORMANCE CHART
-          // ===============================================
+          // =========================
+
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(
+            padding:
+                const EdgeInsets.all(
               20,
             ),
-            decoration: BoxDecoration(
+            decoration:
+                BoxDecoration(
               color: Colors.white,
               borderRadius:
                   BorderRadius.circular(
                 20,
               ),
               border: Border.all(
-                color: const Color(
+                color:
+                    const Color(
                   0xFFE5E5E5,
                 ),
               ),
@@ -291,13 +160,16 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                 SizedBox(
                   width: 190,
                   height: 190,
-                  child: CustomPaint(
+                  child:
+                      CustomPaint(
                     painter:
                         _RentalDonutPainter(
                       equipment:
-                          topEquipment,
+                          performance
+                              .topEquipment,
                     ),
-                    child: Center(
+                    child:
+                        Center(
                       child: Column(
                         mainAxisAlignment:
                             MainAxisAlignment
@@ -305,20 +177,25 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                         children: [
                           const Text(
                             'Total Rentals',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  12,
                               color:
                                   Colors.grey,
                             ),
                           ),
+
                           const SizedBox(
                             height: 3,
                           ),
+
                           Text(
-                            '$completedRentals',
+                            '${performance.completedRentals}',
                             style:
                                 const TextStyle(
-                              fontSize: 27,
+                              fontSize:
+                                  27,
                               fontWeight:
                                   FontWeight
                                       .w900,
@@ -334,7 +211,9 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                   height: 20,
                 ),
 
-                if (topEquipment.isEmpty)
+                if (performance
+                    .topEquipment
+                    .isEmpty)
                   const Padding(
                     padding:
                         EdgeInsets.all(
@@ -342,7 +221,8 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                     ),
                     child: Text(
                       'No completed rental data yet.',
-                      style: TextStyle(
+                      style:
+                          TextStyle(
                         color:
                             Colors.grey,
                       ),
@@ -350,10 +230,15 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                   )
                 else
                   ...List.generate(
-                    topEquipment.length,
-                    (index) {
+                    performance
+                        .topEquipment
+                        .length,
+                    (
+                      index,
+                    ) {
                       final item =
-                          topEquipment[
+                          performance
+                                  .topEquipment[
                               index];
 
                       return Padding(
@@ -362,13 +247,10 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                                 .only(
                           bottom: 12,
                         ),
-                        child: _LegendRow(
+                        child:
+                            _LegendRow(
                           index: index,
-                          name: item.name,
-                          rentals:
-                              item.rentals,
-                          revenue:
-                              item.revenue,
+                          item: item,
                         ),
                       );
                     },
@@ -381,9 +263,10 @@ class EquipmentPerformanceScreen extends StatelessWidget {
             height: 18,
           ),
 
-          // ===============================================
+          // =========================
           // STAT CARDS
-          // ===============================================
+          // =========================
+
           Row(
             children: [
               Expanded(
@@ -392,7 +275,7 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                   title:
                       'Listed Equipment',
                   value:
-                      '$equipmentCount',
+                      '${performance.equipmentCount}',
                   icon: Icons
                       .inventory_2_outlined,
                 ),
@@ -408,7 +291,7 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                   title:
                       'Total Rentals',
                   value:
-                      '$completedRentals',
+                      '${performance.completedRentals}',
                   icon:
                       Icons.repeat,
                 ),
@@ -428,7 +311,7 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                   title:
                       'Revenue',
                   value:
-                      'Rs. ${_formatPrice(totalRevenue)}',
+                      'Rs. ${_formatPrice(performance.totalRevenue)}',
                   icon: Icons
                       .payments_outlined,
                 ),
@@ -444,7 +327,7 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                   title:
                       'Active Rentals',
                   value:
-                      '$activeRentals',
+                      '${performance.activeRentals}',
                   icon:
                       Icons.swap_horiz,
                 ),
@@ -456,9 +339,10 @@ class EquipmentPerformanceScreen extends StatelessWidget {
             height: 20,
           ),
 
-          // ===============================================
+          // =========================
           // TOTAL REVENUE
-          // ===============================================
+          // =========================
+
           Container(
             width: double.infinity,
             padding:
@@ -481,8 +365,7 @@ class EquipmentPerformanceScreen extends StatelessWidget {
             ),
             child: Column(
               crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Total Revenue Generated',
@@ -498,7 +381,7 @@ class EquipmentPerformanceScreen extends StatelessWidget {
                 ),
 
                 Text(
-                  'Rs. ${_formatPrice(totalRevenue)}',
+                  'Rs. ${_formatPrice(performance.totalRevenue)}',
                   style:
                       const TextStyle(
                     fontSize: 28,
@@ -533,7 +416,8 @@ class EquipmentPerformanceScreen extends StatelessWidget {
     return Center(
       child: Text(
         message,
-        style: const TextStyle(
+        style:
+            const TextStyle(
           color: Colors.red,
         ),
       ),
@@ -557,38 +441,18 @@ class EquipmentPerformanceScreen extends StatelessWidget {
 }
 
 // =========================================================
-// EQUIPMENT STATS MODEL
-// =========================================================
-class _EquipmentStats {
-  final String equipmentId;
-  final String name;
-
-  int rentals;
-  double revenue;
-
-  _EquipmentStats({
-    required this.equipmentId,
-    required this.name,
-    this.rentals = 0,
-    this.revenue = 0,
-  });
-}
-
-// =========================================================
 // LEGEND ROW
 // =========================================================
+
 class _LegendRow
     extends StatelessWidget {
   final int index;
-  final String name;
-  final int rentals;
-  final double revenue;
+
+  final EquipmentPerformanceItem item;
 
   const _LegendRow({
     required this.index,
-    required this.name,
-    required this.rentals,
-    required this.revenue,
+    required this.item,
   });
 
   @override
@@ -607,9 +471,10 @@ class _LegendRow
       ),
     ];
 
-    final color =
-        colors[index %
-            colors.length];
+    final Color color =
+        colors[
+            index %
+                colors.length];
 
     return Row(
       children: [
@@ -630,7 +495,7 @@ class _LegendRow
 
         Expanded(
           child: Text(
-            name,
+            item.name,
             style:
                 const TextStyle(
               fontSize: 13,
@@ -645,7 +510,7 @@ class _LegendRow
               CrossAxisAlignment.end,
           children: [
             Text(
-              '$rentals Rentals',
+              '${item.rentals} Rentals',
               style:
                   const TextStyle(
                 fontSize: 12,
@@ -653,8 +518,9 @@ class _LegendRow
                     Colors.grey,
               ),
             ),
+
             Text(
-              'Rs. ${_formatPrice(revenue)}',
+              'Rs. ${_formatPrice(item.revenue)}',
               style:
                   const TextStyle(
                 fontSize: 10,
@@ -687,6 +553,7 @@ class _LegendRow
 // =========================================================
 // PERFORMANCE CARD
 // =========================================================
+
 class _PerformanceCard
     extends StatelessWidget {
   final String title;
@@ -759,7 +626,8 @@ class _PerformanceCard
           ),
 
           FittedBox(
-            fit: BoxFit.scaleDown,
+            fit:
+                BoxFit.scaleDown,
             alignment:
                 Alignment.centerLeft,
             child: Text(
@@ -781,9 +649,11 @@ class _PerformanceCard
 // =========================================================
 // DONUT CHART
 // =========================================================
+
 class _RentalDonutPainter
     extends CustomPainter {
-  final List<_EquipmentStats>
+  final List<
+          EquipmentPerformanceItem>
       equipment;
 
   _RentalDonutPainter({
@@ -795,7 +665,8 @@ class _RentalDonutPainter
     Canvas canvas,
     Size size,
   ) {
-    final center = Offset(
+    final Offset center =
+        Offset(
       size.width / 2,
       size.height / 2,
     );
@@ -806,9 +677,9 @@ class _RentalDonutPainter
               size.height,
             ) /
             2 -
-            18;
+        18;
 
-    final backgroundPaint =
+    final Paint backgroundPaint =
         Paint()
           ..color =
               const Color(
@@ -833,10 +704,10 @@ class _RentalDonutPainter
         equipment.fold(
       0,
       (
-        sum,
+        total,
         item,
       ) =>
-          sum +
+          total +
           item.rentals,
     );
 
@@ -859,11 +730,12 @@ class _RentalDonutPainter
     double startAngle =
         -math.pi / 2;
 
-    for (int i = 0;
-        i < equipment.length;
-        i++) {
+    for (int index = 0;
+        index <
+            equipment.length;
+        index++) {
       final item =
-          equipment[i];
+          equipment[index];
 
       final double sweepAngle =
           (item.rentals /
@@ -871,14 +743,18 @@ class _RentalDonutPainter
               math.pi *
               2;
 
-      final paint = Paint()
-        ..color = colors[
-            i % colors.length]
-        ..style =
-            PaintingStyle.stroke
-        ..strokeWidth = 20
-        ..strokeCap =
-            StrokeCap.butt;
+      final Paint paint =
+          Paint()
+            ..color = colors[
+                index %
+                    colors.length]
+            ..style =
+                PaintingStyle
+                    .stroke
+            ..strokeWidth =
+                20
+            ..strokeCap =
+                StrokeCap.butt;
 
       canvas.drawArc(
         Rect.fromCircle(

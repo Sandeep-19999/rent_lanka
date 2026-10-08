@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../services/equipment_service.dart';
 
 class EditListingScreen extends StatefulWidget {
   final String equipmentId;
@@ -18,6 +19,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
   static const Color primaryRed = Color(0xFFED1235);
 
   final _formKey = GlobalKey<FormState>();
+
+  final EquipmentService _equipmentService =
+      EquipmentService();
 
   final TextEditingController nameController =
       TextEditingController();
@@ -62,17 +66,19 @@ class _EditListingScreenState extends State<EditListingScreen> {
 
   Future<void> _loadEquipment() async {
     try {
-      final document = await FirebaseFirestore.instance
-          .collection('equipment')
-          .doc(widget.equipmentId)
-          .get();
+      final equipment =
+          await _equipmentService.getEquipment(
+        widget.equipmentId,
+      );
 
-      if (!document.exists) {
-        if (!mounted) return;
+      if (!mounted) return;
 
+      if (equipment == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Equipment not found'),
+            content: Text(
+              'Equipment not found',
+            ),
           ),
         );
 
@@ -80,44 +86,33 @@ class _EditListingScreenState extends State<EditListingScreen> {
         return;
       }
 
-      final data =
-          document.data() as Map<String, dynamic>;
+      nameController.text = equipment.name;
+      brandController.text = equipment.brand;
+      sizeController.text = equipment.size;
 
-      nameController.text =
-          data['name']?.toString() ?? '';
+      final price = equipment.pricePerDay;
 
-      brandController.text =
-          data['brand']?.toString() ?? '';
-
-      sizeController.text =
-          data['size']?.toString() ?? '';
-
-      final price = data['pricePerDay'];
-
-      if (price is num) {
-        if (price.toDouble() ==
-            price.toDouble().roundToDouble()) {
-          priceController.text =
-              price.toInt().toString();
-        } else {
-          priceController.text =
-              price.toString();
-        }
+      if (price == price.roundToDouble()) {
+        priceController.text =
+            price.toInt().toString();
+      } else {
+        priceController.text =
+            price.toString();
       }
 
-      final category =
-          data['category']?.toString();
-
-      final condition =
-          data['condition']?.toString();
-
       setState(() {
-        if (sports.contains(category)) {
-          selectedSport = category;
+        if (sports.contains(
+          equipment.category,
+        )) {
+          selectedSport =
+              equipment.category;
         }
 
-        if (conditions.contains(condition)) {
-          selectedCondition = condition;
+        if (conditions.contains(
+          equipment.condition,
+        )) {
+          selectedCondition =
+              equipment.condition;
         }
 
         isLoading = false;
@@ -152,6 +147,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
           ),
         ),
       );
+
       return;
     }
 
@@ -163,6 +159,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
           ),
         ),
       );
+
       return;
     }
 
@@ -171,20 +168,24 @@ class _EditListingScreenState extends State<EditListingScreen> {
     });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('equipment')
-          .doc(widget.equipmentId)
-          .update({
-        'name': nameController.text.trim(),
-        'category': selectedSport,
-        'brand': brandController.text.trim(),
-        'size': sizeController.text.trim(),
-        'condition': selectedCondition,
-        'pricePerDay': double.parse(
+      await _equipmentService.updateEquipment(
+        equipmentId:
+            widget.equipmentId,
+        name:
+            nameController.text.trim(),
+        category:
+            selectedSport!,
+        brand:
+            brandController.text.trim(),
+        size:
+            sizeController.text.trim(),
+        condition:
+            selectedCondition!,
+        pricePerDay:
+            double.parse(
           priceController.text.trim(),
         ),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      );
 
       if (!mounted) return;
 
@@ -235,10 +236,13 @@ class _EditListingScreenState extends State<EditListingScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints:
-                const BoxConstraints(maxWidth: 420),
+                const BoxConstraints(
+              maxWidth: 420,
+            ),
             child: isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(
+                    child:
+                        CircularProgressIndicator(
                       color: primaryRed,
                     ),
                   )
@@ -254,14 +258,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            CrossAxisAlignment
+                                .start,
                         children: [
                           // Header
                           Row(
                             children: [
                               IconButton(
                                 onPressed: () {
-                                  Navigator.pop(context);
+                                  Navigator.pop(
+                                    context,
+                                  );
                                 },
                                 padding:
                                     EdgeInsets.zero,
@@ -283,17 +290,24 @@ class _EditListingScreenState extends State<EditListingScreen> {
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight:
-                                      FontWeight.w800,
+                                      FontWeight
+                                          .w800,
                                 ),
                               ),
                             ],
                           ),
 
-                          const SizedBox(height: 30),
+                          const SizedBox(
+                            height: 30,
+                          ),
 
-                          _label('Equipment Name'),
+                          _label(
+                            'Equipment Name',
+                          ),
 
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
 
                           TextFormField(
                             controller:
@@ -302,8 +316,10 @@ class _EditListingScreenState extends State<EditListingScreen> {
                                 _inputDecoration(
                               'Equipment name',
                             ),
-                            validator: (value) {
-                              if (value == null ||
+                            validator:
+                                (value) {
+                              if (value ==
+                                      null ||
                                   value
                                       .trim()
                                       .isEmpty) {
@@ -314,28 +330,41 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             },
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(
+                            height: 20,
+                          ),
 
                           _label(
                             'Sport / Category',
                           ),
 
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
 
                           DropdownButtonFormField<
                               String>(
-                            value: selectedSport,
+                            initialValue:
+                                selectedSport,
                             decoration:
                                 _inputDecoration(
                               'Select category',
                             ),
-                            items: sports.map((sport) {
-                              return DropdownMenuItem(
-                                value: sport,
-                                child: Text(sport),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
+                            items:
+                                sports.map(
+                              (sport) {
+                                return DropdownMenuItem<
+                                    String>(
+                                  value: sport,
+                                  child:
+                                      Text(
+                                    sport,
+                                  ),
+                                );
+                              },
+                            ).toList(),
+                            onChanged:
+                                (value) {
                               setState(() {
                                 selectedSport =
                                     value;
@@ -343,11 +372,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             },
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(
+                            height: 20,
+                          ),
 
-                          _label('Brand'),
+                          _label(
+                            'Brand',
+                          ),
 
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
 
                           TextFormField(
                             controller:
@@ -358,11 +393,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(
+                            height: 20,
+                          ),
 
-                          _label('Size'),
+                          _label(
+                            'Size',
+                          ),
 
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
 
                           TextFormField(
                             controller:
@@ -373,29 +414,42 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(
+                            height: 20,
+                          ),
 
-                          _label('Condition'),
+                          _label(
+                            'Condition',
+                          ),
 
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
 
                           DropdownButtonFormField<
                               String>(
-                            value:
+                            initialValue:
                                 selectedCondition,
                             decoration:
                                 _inputDecoration(
                               'Select condition',
                             ),
-                            items: conditions
-                                .map((condition) {
-                              return DropdownMenuItem(
-                                value: condition,
-                                child:
-                                    Text(condition),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
+                            items:
+                                conditions.map(
+                              (condition) {
+                                return DropdownMenuItem<
+                                    String>(
+                                  value:
+                                      condition,
+                                  child:
+                                      Text(
+                                    condition,
+                                  ),
+                                );
+                              },
+                            ).toList(),
+                            onChanged:
+                                (value) {
                               setState(() {
                                 selectedCondition =
                                     value;
@@ -403,13 +457,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             },
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(
+                            height: 20,
+                          ),
 
                           _label(
                             'Rental Price Per Day',
                           ),
 
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
 
                           TextFormField(
                             controller:
@@ -422,10 +480,13 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             decoration:
                                 _inputDecoration(
                               'Rental price',
-                              prefixText: 'Rs. ',
+                              prefixText:
+                                  'Rs. ',
                             ),
-                            validator: (value) {
-                              if (value == null ||
+                            validator:
+                                (value) {
+                              if (value ==
+                                      null ||
                                   value
                                       .trim()
                                       .isEmpty) {
@@ -437,7 +498,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
                                 value.trim(),
                               );
 
-                              if (price == null ||
+                              if (price ==
+                                      null ||
                                   price <= 0) {
                                 return 'Please enter a valid price';
                               }
@@ -446,17 +508,23 @@ class _EditListingScreenState extends State<EditListingScreen> {
                             },
                           ),
 
-                          const SizedBox(height: 30),
+                          const SizedBox(
+                            height: 30,
+                          ),
 
                           SizedBox(
-                            width: double.infinity,
+                            width:
+                                double.infinity,
                             height: 54,
-                            child: ElevatedButton(
-                              onPressed: isSaving
-                                  ? null
-                                  : _updateListing,
-                              style: ElevatedButton
-                                  .styleFrom(
+                            child:
+                                ElevatedButton(
+                              onPressed:
+                                  isSaving
+                                      ? null
+                                      : _updateListing,
+                              style:
+                                  ElevatedButton
+                                      .styleFrom(
                                 backgroundColor:
                                     primaryRed,
                                 foregroundColor:
@@ -484,7 +552,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
                                         strokeWidth:
                                             2.5,
                                         color:
-                                            Colors.white,
+                                            Colors
+                                                .white,
                                       ),
                                     )
                                   : const Text(
@@ -510,7 +579,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
     );
   }
 
-  Widget _label(String text) {
+  Widget _label(
+    String text,
+  ) {
     return Text(
       text,
       style: const TextStyle(
@@ -528,7 +599,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
       hintText: hint,
       prefixText: prefixText,
       filled: true,
-      fillColor: const Color(0xFFFAFAFA),
+      fillColor:
+          const Color(0xFFFAFAFA),
       contentPadding:
           const EdgeInsets.symmetric(
         horizontal: 15,
@@ -538,17 +610,21 @@ class _EditListingScreenState extends State<EditListingScreen> {
         borderRadius:
             BorderRadius.circular(12),
       ),
-      enabledBorder: OutlineInputBorder(
+      enabledBorder:
+          OutlineInputBorder(
         borderRadius:
             BorderRadius.circular(12),
-        borderSide: const BorderSide(
+        borderSide:
+            const BorderSide(
           color: Color(0xFFDDDDDD),
         ),
       ),
-      focusedBorder: OutlineInputBorder(
+      focusedBorder:
+          OutlineInputBorder(
         borderRadius:
             BorderRadius.circular(12),
-        borderSide: const BorderSide(
+        borderSide:
+            const BorderSide(
           color: primaryRed,
           width: 1.5,
         ),

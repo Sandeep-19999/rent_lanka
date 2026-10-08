@@ -1,5 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../models/rental_request_model.dart';
+import '../services/rental_request_service.dart';
 
 import 'pickup_return_screen.dart';
 
@@ -11,322 +13,49 @@ class RequestDetailsScreen extends StatelessWidget {
     required this.requestId,
   });
 
-  static const Color primaryRed = Color(0xFFED1235);
-  static const Color textGrey = Color(0xFF8A8A8A);
+  static const Color primaryRed =
+      Color(0xFFED1235);
 
-  // =========================================================
-  // UPDATE STATUS
-  // Mainly used for rejection
-  // =========================================================
-  Future<void> _updateStatus(
-    BuildContext context,
-    String status,
-  ) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('rental_requests')
-          .doc(requestId)
-          .update({
-        'status': status,
-        'statusUpdatedAt': FieldValue.serverTimestamp(),
-      });
+  static const Color textGrey =
+      Color(0xFF8A8A8A);
 
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            status == 'rejected'
-                ? 'Rental request rejected'
-                : 'Request updated successfully',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to update request: $error',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
+  static final RentalRequestService
+      _requestService =
+      RentalRequestService();
 
   // =========================================================
   // ACCEPT REQUEST
-  //
-  // 1. Validate request data
-  // 2. Read equipment
-  // 3. Check unavailable dates
-  // 4. If no conflict, reserve requested dates
-  // 5. Change request status to accepted
   // =========================================================
+
   Future<void> _acceptRequest(
     BuildContext context,
-    Map<String, dynamic> requestData,
+    RentalRequestModel request,
   ) async {
     try {
-      final String equipmentId =
-          requestData['equipmentId']?.toString().trim() ?? '';
-
-      final String startDate =
-          requestData['startDate']?.toString().trim() ?? '';
-
-      final String endDate =
-          requestData['endDate']?.toString().trim() ?? '';
-
-      // -----------------------------
-      // Basic validation
-      // -----------------------------
-      if (equipmentId.isEmpty ||
-          startDate.isEmpty ||
-          endDate.isEmpty) {
-        if (!context.mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Request information is incomplete.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        return;
-      }
-
-      final DateTime? start =
-          DateTime.tryParse(startDate);
-
-      final DateTime? end =
-          DateTime.tryParse(endDate);
-
-      if (start == null || end == null) {
-        if (!context.mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Invalid rental dates.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        return;
-      }
-
-      if (start.isAfter(end)) {
-        if (!context.mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Start date cannot be after end date.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        return;
-      }
-
-      // -----------------------------
-      // Create requested date list
-      // -----------------------------
-      final List<String> requestedDates = [];
-
-      DateTime currentDate = DateTime(
-        start.year,
-        start.month,
-        start.day,
+      await _requestService.acceptRequest(
+        request,
       );
 
-      final DateTime finalDate = DateTime(
-        end.year,
-        end.month,
-        end.day,
-      );
-
-      while (!currentDate.isAfter(finalDate)) {
-        requestedDates.add(
-          _formatDate(currentDate),
-        );
-
-        currentDate = currentDate.add(
-          const Duration(days: 1),
-        );
+      if (!context.mounted) {
+        return;
       }
-
-      final equipmentRef =
-          FirebaseFirestore.instance
-              .collection('equipment')
-              .doc(equipmentId);
-
-      final requestRef =
-          FirebaseFirestore.instance
-              .collection('rental_requests')
-              .doc(requestId);
-
-      // =====================================================
-      // TRANSACTION
-      //
-      // This prevents two requests from being accepted
-      // for the same equipment dates at nearly the same time.
-      // =====================================================
-      await FirebaseFirestore.instance.runTransaction(
-        (transaction) async {
-          final equipmentSnapshot =
-              await transaction.get(
-            equipmentRef,
-          );
-
-          if (!equipmentSnapshot.exists) {
-            throw Exception(
-              'Equipment could not be found.',
-            );
-          }
-
-          final equipmentData =
-              equipmentSnapshot.data() ?? {};
-
-          final bool isAvailable =
-              equipmentData['isAvailable'] != false;
-
-          if (!isAvailable) {
-            throw Exception(
-              'This equipment is currently unavailable.',
-            );
-          }
-
-          // -----------------------------------------------
-          // Existing unavailable dates
-          // -----------------------------------------------
-          final dynamic unavailableValue =
-              equipmentData['unavailableDates'];
-
-          final Set<String> unavailableDates =
-              {};
-
-          if (unavailableValue is List) {
-            unavailableDates.addAll(
-              unavailableValue.map(
-                (date) => date.toString(),
-              ),
-            );
-          }
-
-          // -----------------------------------------------
-          // Check for conflicts
-          // -----------------------------------------------
-          final List<String> conflictDates =
-              requestedDates
-                  .where(
-                    (date) =>
-                        unavailableDates.contains(
-                      date,
-                    ),
-                  )
-                  .toList();
-
-          if (conflictDates.isNotEmpty) {
-            throw Exception(
-              'Equipment is unavailable on '
-              '${conflictDates.join(', ')}.',
-            );
-          }
-
-          // -----------------------------------------------
-          // Make sure request is still pending
-          // -----------------------------------------------
-          final requestSnapshot =
-              await transaction.get(
-            requestRef,
-          );
-
-          if (!requestSnapshot.exists) {
-            throw Exception(
-              'Rental request could not be found.',
-            );
-          }
-
-          final requestFirestoreData =
-              requestSnapshot.data() ?? {};
-
-          final String currentStatus =
-              requestFirestoreData['status']
-                      ?.toString()
-                      .toLowerCase() ??
-                  'pending';
-
-          if (currentStatus != 'pending') {
-            throw Exception(
-              'This request has already been updated.',
-            );
-          }
-
-          // -----------------------------------------------
-          // Reserve equipment dates
-          // -----------------------------------------------
-          transaction.update(
-            equipmentRef,
-            {
-              'unavailableDates':
-                  FieldValue.arrayUnion(
-                requestedDates,
-              ),
-              'availabilityUpdatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-
-          // -----------------------------------------------
-          // Accept rental request
-          // -----------------------------------------------
-          transaction.update(
-            requestRef,
-            {
-              'status': 'accepted',
-
-              'reservedDates':
-                  requestedDates,
-
-              'statusUpdatedAt':
-                  FieldValue.serverTimestamp(),
-
-              'availabilityCheckedAt':
-                  FieldValue.serverTimestamp(),
-
-              'datesReservedAt':
-                  FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
-      if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Rental request accepted and dates reserved.',
           ),
-          backgroundColor: Color(
-            0xFF27944A,
-          ),
+          backgroundColor:
+              Color(0xFF27944A),
         ),
       );
     } catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
 
-      String message =
-          error.toString();
+      String message = error.toString();
 
-      // Remove "Exception:" from message
       message = message.replaceFirst(
         'Exception: ',
         '',
@@ -334,21 +63,19 @@ class RequestDetailsScreen extends StatelessWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            message,
-          ),
+          content: Text(message),
           backgroundColor: Colors.red,
-          duration: const Duration(
-            seconds: 5,
-          ),
+          duration:
+              const Duration(seconds: 5),
         ),
       );
     }
   }
 
   // =========================================================
-  // REJECT REQUEST DIALOG
+  // REJECT
   // =========================================================
+
   Future<void> _showRejectDialog(
     BuildContext context,
   ) async {
@@ -394,11 +121,40 @@ class RequestDetailsScreen extends StatelessWidget {
       },
     );
 
-    if (shouldReject == true &&
-        context.mounted) {
-      await _updateStatus(
-        context,
-        'rejected',
+    if (shouldReject != true ||
+        !context.mounted) {
+      return;
+    }
+
+    try {
+      await _requestService.updateStatus(
+        requestId: requestId,
+        status: 'rejected',
+      );
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Rental request rejected',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to reject request: $error',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -406,6 +162,7 @@ class RequestDetailsScreen extends StatelessWidget {
   // =========================================================
   // BUILD
   // =========================================================
+
   @override
   Widget build(
     BuildContext context,
@@ -415,18 +172,16 @@ class RequestDetailsScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
+            constraints:
+                const BoxConstraints(
               maxWidth: 420,
             ),
             child: StreamBuilder<
-                DocumentSnapshot<
-                    Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection(
-                    'rental_requests',
-                  )
-                  .doc(requestId)
-                  .snapshots(),
+                RentalRequestModel?>(
+              stream: _requestService
+                  .watchRentalRequest(
+                requestId,
+              ),
               builder: (
                 context,
                 snapshot,
@@ -453,7 +208,8 @@ class RequestDetailsScreen extends StatelessWidget {
                 }
 
                 if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
+                        ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const Center(
                     child:
                         CircularProgressIndicator(
@@ -462,67 +218,16 @@ class RequestDetailsScreen extends StatelessWidget {
                   );
                 }
 
-                if (!snapshot.hasData ||
-                    !snapshot.data!.exists) {
+                final request =
+                    snapshot.data;
+
+                if (request == null) {
                   return const Center(
                     child: Text(
                       'Rental request not found.',
                     ),
                   );
                 }
-
-                final Map<String, dynamic> data =
-                    snapshot.data!.data()!;
-
-                final String playerName =
-                    data['playerName']
-                            ?.toString() ??
-                        'Player';
-
-                final String equipmentName =
-                    data['equipmentName']
-                            ?.toString() ??
-                        'Equipment';
-
-                final String startDate =
-                    data['startDate']
-                            ?.toString() ??
-                        '';
-
-                final String endDate =
-                    data['endDate']
-                            ?.toString() ??
-                        '';
-
-                final String pickupLocation =
-                    data['pickupLocation']
-                            ?.toString() ??
-                        'Provider location';
-
-                final dynamic verifiedValue =
-                    data['verifiedUser'];
-
-                final bool verifiedUser =
-                    verifiedValue == true ||
-                        verifiedValue
-                                ?.toString()
-                                .toLowerCase() ==
-                            'true';
-
-                final String status =
-                    data['status']
-                            ?.toString()
-                            .toLowerCase() ??
-                        'pending';
-
-                final dynamic amountValue =
-                    data['totalAmount'];
-
-                final double totalAmount =
-                    amountValue is num
-                        ? amountValue
-                            .toDouble()
-                        : 0;
 
                 return SingleChildScrollView(
                   padding:
@@ -536,9 +241,10 @@ class RequestDetailsScreen extends StatelessWidget {
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
                     children: [
-                      // =================================================
+                      // ============================
                       // HEADER
-                      // =================================================
+                      // ============================
+
                       Row(
                         children: [
                           IconButton(
@@ -567,8 +273,7 @@ class RequestDetailsScreen extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight:
-                                  FontWeight
-                                      .w800,
+                                  FontWeight.w800,
                             ),
                           ),
                         ],
@@ -578,12 +283,12 @@ class RequestDetailsScreen extends StatelessWidget {
                         height: 28,
                       ),
 
-                      // =================================================
+                      // ============================
                       // USER CARD
-                      // =================================================
+                      // ============================
+
                       Container(
-                        width:
-                            double.infinity,
+                        width: double.infinity,
                         padding:
                             const EdgeInsets.all(
                           14,
@@ -592,14 +297,11 @@ class RequestDetailsScreen extends StatelessWidget {
                             BoxDecoration(
                           color: Colors.white,
                           borderRadius:
-                              BorderRadius
-                                  .circular(
+                              BorderRadius.circular(
                             14,
                           ),
-                          border:
-                              Border.all(
-                            color:
-                                const Color(
+                          border: Border.all(
+                            color: const Color(
                               0xFFDDDDDD,
                             ),
                           ),
@@ -631,59 +333,53 @@ class RequestDetailsScreen extends StatelessWidget {
                                         .start,
                                 children: [
                                   Text(
-                                    playerName,
+                                    request.playerName,
                                     style:
                                         const TextStyle(
-                                      fontSize:
-                                          17,
+                                      fontSize: 17,
                                       fontWeight:
                                           FontWeight
                                               .w800,
                                     ),
                                   ),
 
-                                  if (verifiedUser)
-                                    ...[
-                                      const SizedBox(
-                                        height:
-                                            5,
-                                      ),
+                                  if (request
+                                      .verifiedUser) ...[
+                                    const SizedBox(
+                                      height: 5,
+                                    ),
 
-                                      const Row(
-                                        children: [
-                                          Icon(
-                                            Icons
-                                                .verified,
-                                            size:
-                                                15,
+                                    const Row(
+                                      children: [
+                                        Icon(
+                                          Icons
+                                              .verified,
+                                          size: 15,
+                                          color:
+                                              primaryRed,
+                                        ),
+                                        SizedBox(
+                                          width: 5,
+                                        ),
+                                        Text(
+                                          'Verified user',
+                                          style:
+                                              TextStyle(
+                                            fontSize:
+                                                13,
                                             color:
                                                 primaryRed,
                                           ),
-
-                                          SizedBox(
-                                            width:
-                                                5,
-                                          ),
-
-                                          Text(
-                                            'Verified user',
-                                            style:
-                                                TextStyle(
-                                              fontSize:
-                                                  13,
-                                              color:
-                                                  primaryRed,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
 
                             _statusBadge(
-                              status,
+                              request.status,
                             ),
                           ],
                         ),
@@ -693,12 +389,12 @@ class RequestDetailsScreen extends StatelessWidget {
                         height: 18,
                       ),
 
-                      // =================================================
+                      // ============================
                       // RENTAL DETAILS
-                      // =================================================
+                      // ============================
+
                       Container(
-                        width:
-                            double.infinity,
+                        width: double.infinity,
                         padding:
                             const EdgeInsets.all(
                           15,
@@ -707,14 +403,11 @@ class RequestDetailsScreen extends StatelessWidget {
                             BoxDecoration(
                           color: Colors.white,
                           borderRadius:
-                              BorderRadius
-                                  .circular(
+                              BorderRadius.circular(
                             14,
                           ),
-                          border:
-                              Border.all(
-                            color:
-                                const Color(
+                          border: Border.all(
+                            color: const Color(
                               0xFFDDDDDD,
                             ),
                           ),
@@ -725,13 +418,13 @@ class RequestDetailsScreen extends StatelessWidget {
                                   .start,
                           children: [
                             Text(
-                              equipmentName,
+                              request
+                                  .equipmentName,
                               style:
                                   const TextStyle(
                                 fontSize: 17,
                                 fontWeight:
-                                    FontWeight
-                                        .w800,
+                                    FontWeight.w800,
                               ),
                             ),
 
@@ -740,12 +433,11 @@ class RequestDetailsScreen extends StatelessWidget {
                             ),
 
                             Text(
-                              '$startDate - $endDate',
+                              '${request.startDate} - ${request.endDate}',
                               style:
                                   const TextStyle(
                                 fontSize: 14,
-                                color:
-                                    textGrey,
+                                color: textGrey,
                               ),
                             ),
 
@@ -754,15 +446,13 @@ class RequestDetailsScreen extends StatelessWidget {
                             ),
 
                             Text(
-                              'Rs. ${_formatPrice(totalAmount)}',
+                              'Rs. ${_formatPrice(request.totalAmount)}',
                               style:
                                   const TextStyle(
                                 fontSize: 20,
-                                color:
-                                    primaryRed,
+                                color: primaryRed,
                                 fontWeight:
-                                    FontWeight
-                                        .w800,
+                                    FontWeight.w800,
                               ),
                             ),
 
@@ -796,8 +486,8 @@ class RequestDetailsScreen extends StatelessWidget {
                                         'Pickup requested: ',
                                   ),
                                   TextSpan(
-                                    text:
-                                        pickupLocation,
+                                    text: request
+                                        .pickupLocation,
                                     style:
                                         const TextStyle(
                                       fontWeight:
@@ -828,16 +518,17 @@ class RequestDetailsScreen extends StatelessWidget {
                                         'Status: ',
                                   ),
                                   TextSpan(
-                                    text: status
+                                    text: request
+                                        .status
                                         .toUpperCase(),
-                                    style:
-                                        TextStyle(
+                                    style: TextStyle(
                                       fontWeight:
                                           FontWeight
                                               .w800,
                                       color:
                                           _statusColor(
-                                        status,
+                                        request
+                                            .status,
                                       ),
                                     ),
                                   ),
@@ -852,16 +543,16 @@ class RequestDetailsScreen extends StatelessWidget {
                         height: 28,
                       ),
 
-                      // =================================================
-                      // PENDING REQUEST
-                      // =================================================
-                      if (status ==
+                      // ============================
+                      // PENDING
+                      // ============================
+
+                      if (request.status ==
                           'pending') ...[
                         Row(
                           children: [
                             Expanded(
-                              child:
-                                  SizedBox(
+                              child: SizedBox(
                                 height: 52,
                                 child:
                                     ElevatedButton(
@@ -869,7 +560,7 @@ class RequestDetailsScreen extends StatelessWidget {
                                       () async {
                                     await _acceptRequest(
                                       context,
-                                      data,
+                                      request,
                                     );
                                   },
                                   style:
@@ -878,8 +569,7 @@ class RequestDetailsScreen extends StatelessWidget {
                                     backgroundColor:
                                         primaryRed,
                                     foregroundColor:
-                                        Colors
-                                            .white,
+                                        Colors.white,
                                     elevation: 0,
                                     shape:
                                         RoundedRectangleBorder(
@@ -895,8 +585,7 @@ class RequestDetailsScreen extends StatelessWidget {
                                     'Accept Request',
                                     style:
                                         TextStyle(
-                                      fontSize:
-                                          15,
+                                      fontSize: 15,
                                       fontWeight:
                                           FontWeight
                                               .w800,
@@ -911,8 +600,7 @@ class RequestDetailsScreen extends StatelessWidget {
                             ),
 
                             Expanded(
-                              child:
-                                  SizedBox(
+                              child: SizedBox(
                                 height: 52,
                                 child:
                                     OutlinedButton(
@@ -925,12 +613,10 @@ class RequestDetailsScreen extends StatelessWidget {
                                       OutlinedButton
                                           .styleFrom(
                                     foregroundColor:
-                                        Colors
-                                            .black,
+                                        Colors.black,
                                     side:
                                         const BorderSide(
-                                      color:
-                                          Color(
+                                      color: Color(
                                         0xFFDADADA,
                                       ),
                                     ),
@@ -948,8 +634,7 @@ class RequestDetailsScreen extends StatelessWidget {
                                     'Reject',
                                     style:
                                         TextStyle(
-                                      fontSize:
-                                          15,
+                                      fontSize: 15,
                                       fontWeight:
                                           FontWeight
                                               .w800,
@@ -962,34 +647,32 @@ class RequestDetailsScreen extends StatelessWidget {
                         ),
                       ],
 
-                      // =================================================
+                      // ============================
                       // ACCEPTED / ACTIVE
-                      // =================================================
-                      if (status ==
+                      // ============================
+
+                      if (request.status ==
                               'accepted' ||
-                          status ==
+                          request.status ==
                               'active') ...[
                         Container(
-                          width:
-                              double.infinity,
+                          width: double.infinity,
                           padding:
                               const EdgeInsets.all(
                             16,
                           ),
                           decoration:
                               BoxDecoration(
-                            color:
-                                const Color(
+                            color: const Color(
                               0xFFEAF8EF,
                             ),
                             borderRadius:
-                                BorderRadius
-                                    .circular(
+                                BorderRadius.circular(
                               12,
                             ),
                           ),
                           child: Text(
-                            status ==
+                            request.status ==
                                     'accepted'
                                 ? 'This rental request has been accepted.'
                                 : 'This rental is currently active.',
@@ -1001,8 +684,7 @@ class RequestDetailsScreen extends StatelessWidget {
                                 0xFF27944A,
                               ),
                               fontWeight:
-                                  FontWeight
-                                      .w700,
+                                  FontWeight.w700,
                             ),
                           ),
                         ),
@@ -1012,32 +694,28 @@ class RequestDetailsScreen extends StatelessWidget {
                         ),
 
                         SizedBox(
-                          width:
-                              double.infinity,
+                          width: double.infinity,
                           height: 52,
                           child:
-                              ElevatedButton
-                                  .icon(
+                              ElevatedButton.icon(
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder:
-                                      (context) =>
-                                          PickupReturnScreen(
+                                  builder: (
+                                    context,
+                                  ) =>
+                                      PickupReturnScreen(
                                     requestId:
                                         requestId,
                                   ),
                                 ),
                               );
                             },
-                            icon:
-                                const Icon(
-                              Icons
-                                  .swap_horiz,
+                            icon: const Icon(
+                              Icons.swap_horiz,
                             ),
-                            label:
-                                const Text(
+                            label: const Text(
                               'Open Pickup & Return',
                             ),
                             style:
@@ -1061,80 +739,69 @@ class RequestDetailsScreen extends StatelessWidget {
                         ),
                       ],
 
-                      // =================================================
+                      // ============================
                       // REJECTED
-                      // =================================================
-                      if (status ==
+                      // ============================
+
+                      if (request.status ==
                           'rejected')
                         Container(
-                          width:
-                              double.infinity,
+                          width: double.infinity,
                           padding:
                               const EdgeInsets.all(
                             16,
                           ),
                           decoration:
                               BoxDecoration(
-                            color:
-                                const Color(
+                            color: const Color(
                               0xFFFFEEF1,
                             ),
                             borderRadius:
-                                BorderRadius
-                                    .circular(
+                                BorderRadius.circular(
                               12,
                             ),
                           ),
-                          child:
-                              const Text(
+                          child: const Text(
                             'This rental request has been rejected.',
                             textAlign:
                                 TextAlign.center,
-                            style:
-                                TextStyle(
-                              color:
-                                  primaryRed,
+                            style: TextStyle(
+                              color: primaryRed,
                               fontWeight:
-                                  FontWeight
-                                      .w700,
+                                  FontWeight.w700,
                             ),
                           ),
                         ),
 
-                      // =================================================
+                      // ============================
                       // COMPLETED
-                      // =================================================
-                      if (status ==
+                      // ============================
+
+                      if (request.status ==
                           'completed')
                         Container(
-                          width:
-                              double.infinity,
+                          width: double.infinity,
                           padding:
                               const EdgeInsets.all(
                             16,
                           ),
                           decoration:
                               BoxDecoration(
-                            color:
-                                const Color(
+                            color: const Color(
                               0xFFF2F2F2,
                             ),
                             borderRadius:
-                                BorderRadius
-                                    .circular(
+                                BorderRadius.circular(
                               12,
                             ),
                           ),
-                          child:
-                              const Text(
+                          child: const Text(
                             'This rental has been completed.',
                             textAlign:
                                 TextAlign.center,
-                            style:
-                                TextStyle(
+                            style: TextStyle(
                               fontWeight:
-                                  FontWeight
-                                      .w700,
+                                  FontWeight.w700,
                             ),
                           ),
                         ),
@@ -1143,16 +810,15 @@ class RequestDetailsScreen extends StatelessWidget {
                         height: 14,
                       ),
 
-                      // =================================================
+                      // ============================
                       // MESSAGE USER
-                      // =================================================
+                      // ============================
+
                       SizedBox(
-                        width:
-                            double.infinity,
+                        width: double.infinity,
                         height: 52,
                         child:
-                            OutlinedButton
-                                .icon(
+                            OutlinedButton.icon(
                           onPressed: () {
                             ScaffoldMessenger.of(
                               context,
@@ -1164,13 +830,11 @@ class RequestDetailsScreen extends StatelessWidget {
                               ),
                             );
                           },
-                          icon:
-                              const Icon(
+                          icon: const Icon(
                             Icons
                                 .chat_bubble_outline,
                           ),
-                          label:
-                              const Text(
+                          label: const Text(
                             'Message user',
                           ),
                           style:
@@ -1209,6 +873,7 @@ class RequestDetailsScreen extends StatelessWidget {
   // =========================================================
   // STATUS BADGE
   // =========================================================
+
   static Widget _statusBadge(
     String status,
   ) {
@@ -1222,23 +887,17 @@ class RequestDetailsScreen extends StatelessWidget {
       case 'active':
       case 'completed':
         background =
-            const Color(
-          0xFFEAF8EF,
-        );
+            const Color(0xFFEAF8EF);
         break;
 
       case 'rejected':
         background =
-            const Color(
-          0xFFFFEEF1,
-        );
+            const Color(0xFFFFEEF1);
         break;
 
       default:
         background =
-            const Color(
-          0xFFFFF4DD,
-        );
+            const Color(0xFFFFF4DD);
     }
 
     return Container(
@@ -1250,9 +909,7 @@ class RequestDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
+            BorderRadius.circular(20),
       ),
       child: Text(
         status.toUpperCase(),
@@ -1266,9 +923,6 @@ class RequestDetailsScreen extends StatelessWidget {
     );
   }
 
-  // =========================================================
-  // STATUS COLOR
-  // =========================================================
   static Color _statusColor(
     String status,
   ) {
@@ -1290,42 +944,6 @@ class RequestDetailsScreen extends StatelessWidget {
     }
   }
 
-  // =========================================================
-  // FORMAT DATE
-  // =========================================================
-  static String _formatDate(
-    DateTime date,
-  ) {
-    final String year =
-        date.year
-            .toString()
-            .padLeft(
-              4,
-              '0',
-            );
-
-    final String month =
-        date.month
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
-
-    final String day =
-        date.day
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
-
-    return '$year-$month-$day';
-  }
-
-  // =========================================================
-  // FORMAT PRICE
-  // =========================================================
   static String _formatPrice(
     double price,
   ) {
