@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/services/auth_service.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/services/user_service.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/auth/forgot_password_screen.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/auth/signup_screen.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
 
   bool _obscurePassword = true;
   bool _rememberMe = false;
@@ -33,6 +37,52 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // =========================================================
+  // NAVIGATE AFTER LOGIN
+  // =========================================================
+
+  Future<void> _navigateAfterLogin() async {
+    try {
+      final String? role = await _userService.getCurrentUserRole();
+
+      if (!mounted) return;
+
+      // Sports Player -> User Home
+      if (role == 'player') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+
+      // Provider navigation will be handled by another member.
+      if (role == 'provider') {
+        _showMessage(
+          'Provider account signed in successfully.',
+          isError: false,
+        );
+        return;
+      }
+
+      // No role found
+      _showMessage(
+        'No user role found. Please select your role.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      debugPrint('ROLE CHECK ERROR: $e');
+
+      _showMessage(
+        'Unable to load your account role. Please try again.',
+      );
+    }
   }
 
   // =========================================================
@@ -66,8 +116,8 @@ class _LoginScreenState extends State<LoginScreen> {
         isError: false,
       );
 
-      // NEXT STEP:
-      // Navigate to Role Selection / Home screen here.
+      // Check Firestore role and navigate.
+      await _navigateAfterLogin();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
@@ -104,6 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      debugPrint('EMAIL LOGIN ERROR: $e');
+
       _showMessage(
         'Something went wrong. Please try again.',
       );
@@ -121,111 +173,113 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================
 
   Future<void> _googleSignIn() async {
-  debugPrint('========================================');
-  debugPrint('GOOGLE SIGN IN: Button clicked');
-  debugPrint('========================================');
-
-  if (_isGoogleLoading) {
-    return;
-  }
-
-  setState(() {
-    _isGoogleLoading = true;
-  });
-
-  try {
-    debugPrint('GOOGLE SIGN IN: Calling AuthService...');
-
-    final UserCredential credential =
-        await _authService.signInWithGoogle();
-
-    debugPrint('GOOGLE SIGN IN: Firebase returned successfully');
-    debugPrint('USER UID: ${credential.user?.uid}');
-    debugPrint('USER EMAIL: ${credential.user?.email}');
-    debugPrint('USER NAME: ${credential.user?.displayName}');
-
-    if (!mounted) return;
-
-    final User? user = credential.user;
-
-    _showMessage(
-      user?.displayName != null
-          ? 'Welcome ${user!.displayName}!'
-          : 'Google Sign-In successful!',
-      isError: false,
-    );
-
-    // Later:
-    // Navigate to Role Selection / Home screen here.
-  } on FirebaseAuthException catch (e) {
     debugPrint('========================================');
-    debugPrint('FIREBASE AUTH ERROR');
-    debugPrint('ERROR CODE: ${e.code}');
-    debugPrint('ERROR MESSAGE: ${e.message}');
+    debugPrint('GOOGLE SIGN IN: Button clicked');
     debugPrint('========================================');
 
-    if (!mounted) return;
-
-    String message;
-
-    switch (e.code) {
-      case 'popup-closed-by-user':
-        message = 'Google Sign-In was cancelled.';
-        break;
-
-      case 'popup-blocked':
-        message =
-            'Google Sign-In popup was blocked. Please allow popups in Chrome.';
-        break;
-
-      case 'unauthorized-domain':
-        message =
-            'This domain is not authorized in Firebase Authentication.';
-        break;
-
-      case 'operation-not-allowed':
-        message =
-            'Google Sign-In is not enabled in Firebase Authentication.';
-        break;
-
-      case 'account-exists-with-different-credential':
-        message =
-            'An account already exists with this email using another sign-in method.';
-        break;
-
-      case 'network-request-failed':
-        message =
-            'Network error. Please check your internet connection.';
-        break;
-
-      default:
-        message =
-            'Firebase error: ${e.code}\n${e.message ?? 'Unknown error'}';
+    if (_isGoogleLoading) {
+      return;
     }
 
-    _showMessage(message);
-  } catch (e, stackTrace) {
-    debugPrint('========================================');
-    debugPrint('GOOGLE SIGN IN UNKNOWN ERROR');
-    debugPrint('ERROR: $e');
-    debugPrint('STACK TRACE: $stackTrace');
-    debugPrint('========================================');
+    setState(() {
+      _isGoogleLoading = true;
+    });
 
-    if (!mounted) return;
+    try {
+      debugPrint('GOOGLE SIGN IN: Calling AuthService...');
 
-    _showMessage(
-      'Google Sign-In error: $e',
-    );
-  } finally {
-    debugPrint('GOOGLE SIGN IN: Finished');
+      final UserCredential credential =
+          await _authService.signInWithGoogle();
 
-    if (mounted) {
-      setState(() {
-        _isGoogleLoading = false;
-      });
+      debugPrint(
+        'GOOGLE SIGN IN: Firebase returned successfully',
+      );
+      debugPrint('USER UID: ${credential.user?.uid}');
+      debugPrint('USER EMAIL: ${credential.user?.email}');
+      debugPrint('USER NAME: ${credential.user?.displayName}');
+
+      if (!mounted) return;
+
+      final User? user = credential.user;
+
+      _showMessage(
+        user?.displayName != null
+            ? 'Welcome ${user!.displayName}!'
+            : 'Google Sign-In successful!',
+        isError: false,
+      );
+
+      // Check Firestore role and navigate.
+      await _navigateAfterLogin();
+    } on FirebaseAuthException catch (e) {
+      debugPrint('========================================');
+      debugPrint('FIREBASE AUTH ERROR');
+      debugPrint('ERROR CODE: ${e.code}');
+      debugPrint('ERROR MESSAGE: ${e.message}');
+      debugPrint('========================================');
+
+      if (!mounted) return;
+
+      String message;
+
+      switch (e.code) {
+        case 'popup-closed-by-user':
+          message = 'Google Sign-In was cancelled.';
+          break;
+
+        case 'popup-blocked':
+          message =
+              'Google Sign-In popup was blocked. Please allow popups in Chrome.';
+          break;
+
+        case 'unauthorized-domain':
+          message =
+              'This domain is not authorized in Firebase Authentication.';
+          break;
+
+        case 'operation-not-allowed':
+          message =
+              'Google Sign-In is not enabled in Firebase Authentication.';
+          break;
+
+        case 'account-exists-with-different-credential':
+          message =
+              'An account already exists with this email using another sign-in method.';
+          break;
+
+        case 'network-request-failed':
+          message =
+              'Network error. Please check your internet connection.';
+          break;
+
+        default:
+          message =
+              'Firebase error: ${e.code}\n${e.message ?? 'Unknown error'}';
+      }
+
+      _showMessage(message);
+    } catch (e, stackTrace) {
+      debugPrint('========================================');
+      debugPrint('GOOGLE SIGN IN UNKNOWN ERROR');
+      debugPrint('ERROR: $e');
+      debugPrint('STACK TRACE: $stackTrace');
+      debugPrint('========================================');
+
+      if (!mounted) return;
+
+      _showMessage(
+        'Google Sign-In error: $e',
+      );
+    } finally {
+      debugPrint('GOOGLE SIGN IN: Finished');
+
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
     }
   }
-}
 
   // =========================================================
   // FORGOT PASSWORD
@@ -300,7 +354,9 @@ class _LoginScreenState extends State<LoginScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor:
-            isError ? const Color(0xFFB3261E) : const Color(0xFF2E7D32),
+            isError
+                ? const Color(0xFFB3261E)
+                : const Color(0xFF2E7D32),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -437,7 +493,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: Icons.email_outlined,
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
+                        if (value == null ||
+                            value.trim().isEmpty) {
                           return 'Please enter your email';
                         }
 
@@ -481,7 +538,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         suffixIcon: IconButton(
                           onPressed: () {
                             setState(() {
-                              _obscurePassword = !_obscurePassword;
+                              _obscurePassword =
+                                  !_obscurePassword;
                             });
                           },
                           icon: Icon(
@@ -541,13 +599,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         TextButton(
                           onPressed: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const ForgotPasswordScreen(),
-    ),
-  );
-},
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ForgotPasswordScreen(),
+                              ),
+                            );
+                          },
                           child: const Text(
                             'Forgot Password?',
                             style: TextStyle(
@@ -570,22 +629,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       height: 58,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
+                        onPressed:
+                            _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryRed,
                           foregroundColor: Colors.white,
                           disabledBackgroundColor:
-                              primaryRed.withValues(alpha: 0.55),
+                              primaryRed.withValues(
+                            alpha: 0.55,
+                          ),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius:
+                                BorderRadius.circular(16),
                           ),
                         ),
                         child: _isLoading
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(
+                                child:
+                                    CircularProgressIndicator(
                                   strokeWidth: 2.5,
                                   color: Colors.white,
                                 ),
@@ -594,7 +658,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'Sign In',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight:
+                                      FontWeight.w700,
                                 ),
                               ),
                       ),
@@ -636,15 +701,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 24),
 
                     // =================================================
-                    // GOOGLE SIGN IN BUTTON
+                    // GOOGLE SIGN IN
                     // =================================================
 
                     SizedBox(
                       width: double.infinity,
                       height: 58,
                       child: OutlinedButton(
-                        onPressed:
-                            _isGoogleLoading ? null : _googleSignIn,
+                        onPressed: _isGoogleLoading
+                            ? null
+                            : _googleSignIn,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: darkText,
                           backgroundColor: Colors.white,
@@ -653,14 +719,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius:
+                                BorderRadius.circular(16),
                           ),
                         ),
                         child: _isGoogleLoading
                             ? const SizedBox(
                                 width: 23,
                                 height: 23,
-                                child: CircularProgressIndicator(
+                                child:
+                                    CircularProgressIndicator(
                                   strokeWidth: 2.3,
                                   color: primaryRed,
                                 ),
@@ -675,7 +743,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     'Continue with Google',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight:
+                                          FontWeight.w700,
                                     ),
                                   ),
                                 ],
@@ -690,7 +759,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     // =================================================
 
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
                       children: [
                         const Text(
                           "Don't have an account?",
@@ -699,11 +769,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             fontSize: 14,
                           ),
                         ),
-
                         TextButton(
                           onPressed: () {
-                            // NEXT STEP:
-                            // Navigate to SignUpScreen.
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const SignUpScreen(),
+                              ),
+                            );
                           },
                           child: const Text(
                             'Create Account',
