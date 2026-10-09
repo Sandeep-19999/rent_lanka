@@ -21,6 +21,45 @@ class ReviewService {
     throw StateError('Please log in to continue.');
   }
 
+  String? get signedInUserId => _auth.currentUser?.uid;
+
+  Stream<List<ReviewModel>> watchEquipmentReviews(String equipmentId) async* {
+    if (equipmentId.trim().isEmpty || equipmentId.contains('/')) {
+      throw ArgumentError('A valid equipment ID is required.');
+    }
+    yield* _firestore.collection('reviews')
+        .where('equipmentId', isEqualTo: equipmentId)
+        .snapshots()
+        .map((snapshot) {
+          final reviews = snapshot.docs.map(ReviewModel.fromDocument).toList();
+          reviews.sort((a, b) =>
+            (b.updatedAt ?? b.createdAt ?? DateTime(1970)).compareTo(
+              a.updatedAt ?? a.createdAt ?? DateTime(1970),
+            ),
+          );
+          return reviews;
+        });
+  }
+
+  static double? averageRating(Iterable<ReviewModel> reviews) {
+    final ratings = reviews.map((review) => review.rating)
+        .where((rating) => rating >= 1 && rating <= 5).toList();
+    if (ratings.isEmpty) return null;
+    return ratings.fold<int>(0, (total, rating) => total + rating) / ratings.length;
+  }
+
+  Future<String> getReviewerName(String reviewerId) async {
+    if (reviewerId.isEmpty) return 'Rent Lanka User';
+    try {
+      final profile = await _firestore.collection('users').doc(reviewerId).get();
+      final name = profile.data()?['name']?.toString().trim() ?? '';
+      return name.isEmpty ? 'Rent Lanka User' : name;
+    } on FirebaseException {
+      // A deleted or private profile must not prevent viewing its review.
+      return 'Rent Lanka User';
+    }
+  }
+
   String _reviewDocumentId(String bookingId) {
     return '${currentUserId}_$bookingId';
   }
