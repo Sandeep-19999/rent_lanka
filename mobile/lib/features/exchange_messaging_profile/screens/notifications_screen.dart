@@ -16,7 +16,9 @@ import 'rate_review_screen.dart';
 import 'incoming_exchange_request_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.notificationService});
+
+  final NotificationService? notificationService;
 
   @override
   State<NotificationsScreen> createState() =>
@@ -31,12 +33,21 @@ class _NotificationsScreenState
   static const Color borderColor = Color(0xFFE7E7E7);
   static const Color backgroundColor = Color(0xFFF8F8F8);
 
-  final NotificationService _notificationService =
-      NotificationService();
+  late final NotificationService _notificationService;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _notifications;
+  final Set<String> _pendingDeletionIds = {};
+  final Set<String> _deletingNotificationIds = {};
 
-  final ChatService _chatService = ChatService();
+  late final ChatService _chatService = ChatService();
 
   bool _isOpeningNotification = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationService = widget.notificationService ?? NotificationService();
+    _notifications = _notificationService.watchMyNotifications();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +87,7 @@ class _NotificationsScreenState
             child: StreamBuilder<
                 QuerySnapshot<Map<String, dynamic>>>(
               stream:
-                  _notificationService.watchMyNotifications(),
+                  _notifications,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return _buildErrorState();
@@ -143,7 +154,7 @@ class _NotificationsScreenState
                         itemCount:
                             notifications.length,
                         separatorBuilder:
-                            (_, __) =>
+                            (_, _) =>
                                 const SizedBox(
                           height: 11,
                         ),
@@ -321,13 +332,10 @@ class _NotificationsScreenState
           ],
         ),
       ),
-      onDismissed: (_) async {
-        try {
-          await _notificationService
-              .deleteNotification(
-            notificationId,
-          );
-        } catch (_) {}
+      confirmDismiss: (_) async {
+        await _confirmDeleteNotification(notificationId);
+        // Firestore's stream owns removal; a failed delete keeps the card.
+        return false;
       },
       child: Material(
         color: isRead
@@ -338,7 +346,8 @@ class _NotificationsScreenState
         child: InkWell(
           borderRadius:
               BorderRadius.circular(18),
-          onTap: _isOpeningNotification
+          onTap: _isOpeningNotification ||
+                  _pendingDeletionIds.contains(notificationId)
               ? null
               : () => _handleNotificationTap(
                     notificationId:
@@ -410,6 +419,35 @@ class _NotificationsScreenState
                                     BoxShape.circle,
                               ),
                             ),
+                          SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: _deletingNotificationIds
+                                    .contains(notificationId)
+                                ? const Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: CircularProgressIndicator(
+                                      color: primaryRed,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : IconButton(
+                                    key: ValueKey(
+                                      'delete-notification-$notificationId',
+                                    ),
+                                    tooltip: 'Delete notification',
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      color: primaryRed,
+                                      size: 20,
+                                    ),
+                                    onPressed: _pendingDeletionIds
+                                                .contains(notificationId) ||
+                                            _isOpeningNotification
+                                        ? null
+                                        : () => _confirmDeleteNotification(notificationId),
+                                  ),
+                          ),
                         ],
                       ),
                       if (message.isNotEmpty) ...[
@@ -489,6 +527,70 @@ class _NotificationsScreenState
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteNotification(String notificationId) async {
+    if (_pendingDeletionIds.contains(notificationId) ||
+        _isOpeningNotification) {
+      return;
+    }
+    setState(() => _pendingDeletionIds.add(notificationId));
+    try {
+      final uid = _notificationService.currentUserId;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            'Delete Notification?',
+            style: TextStyle(color: darkText, fontWeight: FontWeight.w800),
+          ),
+          content: const Text(
+            'Are you sure you want to delete this notification?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel', style: TextStyle(color: darkText)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: primaryRed, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      setState(() => _deletingNotificationIds.add(notificationId));
+      await _notificationService.deleteNotification(
+        notificationId,
+        expectedUserId: uid,
+      );
+      if (mounted) _showFeatureMessage('Notification deleted.');
+    } catch (error) {
+      if (!mounted) return;
+      _showFeatureMessage(switch (error) {
+        FirebaseAuthException() =>
+          'Please sign in again before deleting notifications.',
+        FirebaseException(code: 'permission-denied') =>
+          'You do not have permission to delete this notification.',
+        FirebaseException(code: 'not-found') =>
+          'This notification is no longer available.',
+        _ => 'Unable to delete notification. Please try again.',
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pendingDeletionIds.remove(notificationId);
+          _deletingNotificationIds.remove(notificationId);
+        });
+      }
+    }
   }
 
   Future<void> _handleNotificationTap({

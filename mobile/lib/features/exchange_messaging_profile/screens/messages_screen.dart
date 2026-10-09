@@ -1,6 +1,7 @@
 import '../models/chat_context.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/chat_service.dart';
@@ -8,8 +9,9 @@ import 'chat_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
   final Widget? bottomNavigationBar;
+  final ChatService? chatService;
 
-  const MessagesScreen({super.key, this.bottomNavigationBar});
+  const MessagesScreen({super.key, this.bottomNavigationBar, this.chatService});
 
   @override
   State<MessagesScreen> createState() => _MessagesScreenState();
@@ -22,10 +24,24 @@ class _MessagesScreenState extends State<MessagesScreen> {
   static const Color borderColor = Color(0xFFE8E8E8);
   static const Color backgroundColor = Color(0xFFF8F8F8);
 
-  final ChatService _chatService = ChatService();
+  late final ChatService _chatService;
+  late final String _currentUserId;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _chats;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _hiddenConversations;
+  final Set<String> _pendingDeletionIds = {};
+  final Set<String> _deletingIds = {};
   final TextEditingController _searchController = TextEditingController();
 
   String _searchText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _chatService = widget.chatService ?? ChatService();
+    _currentUserId = _chatService.currentUserId;
+    _chats = _chatService.watchMyChats();
+    _hiddenConversations = _chatService.watchMyHiddenConversations();
+  }
 
   @override
   void dispose() {
@@ -135,7 +151,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget _buildConversationList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _chatService.watchMyChats(),
+      stream: _hiddenConversations,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return _buildErrorState();
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: primaryRed),
+          );
+        }
+        final hidden = <String, Map<String, dynamic>>{
+          for (final document in snapshot.data!.docs)
+            if (!document.metadata.hasPendingWrites)
+              document.id: document.data(),
+        };
+        return _buildVisibleConversationList(hidden);
+      },
+    );
+  }
+
+  Widget _buildVisibleConversationList(
+    Map<String, Map<String, dynamic>> hidden,
+  ) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _chats,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _buildErrorState();
@@ -150,7 +188,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
           );
         }
 
-        final chats = [...?snapshot.data?.docs];
+        final chats = [...?snapshot.data?.docs].where((document) {
+          return !ChatService.isConversationHidden(
+            document.data(), hidden[document.id],
+          );
+        }).toList();
 
         chats.sort((a, b) {
           final DateTime aTime = _dateFromTimestamp(
@@ -172,7 +214,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           );
 
           final String otherUserId = participants.firstWhere(
-            (id) => id != _chatService.currentUserId,
+            (id) => id != _currentUserId,
             orElse: () => '',
           );
 
@@ -208,7 +250,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             28,
           ),
           itemCount: filteredChats.length,
-          separatorBuilder: (_, __) =>
+          separatorBuilder: (_, _) =>
               const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final document = filteredChats[index];
@@ -220,7 +262,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             );
 
             final String otherUserId = participants.firstWhere(
-              (id) => id != _chatService.currentUserId,
+              (id) => id != _currentUserId,
               orElse: () => '',
             );
 
@@ -234,7 +276,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
             final int unreadCount = _getUnreadCount(
               data: data,
-              currentUserId: _chatService.currentUserId,
+              currentUserId: _currentUserId,
             );
 
             final DateTime lastMessageAt =
@@ -269,11 +311,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final bool hasUnread = unreadCount > 0;
 
     return Material(
+      key: ValueKey('conversation-$chatId'),
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: otherUserId.isEmpty
+        onLongPress: _pendingDeletionIds.contains(chatId)
+            ? null
+            : () => _showConversationActions(chatId),
+        onTap: otherUserId.isEmpty || _pendingDeletionIds.contains(chatId)
             ? null
             : () async {
                 try {
@@ -339,7 +385,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
+                        if (_deletingIds.contains(chatId))
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: primaryRed,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        else
+                          Text(
                           _formatTime(lastMessageAt),
                           style: TextStyle(
                             color: hasUnread
@@ -425,6 +481,89 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showConversationActions(String chatId) async {
+    if (_pendingDeletionIds.contains(chatId)) return;
+    setState(() => _pendingDeletionIds.add(chatId));
+    try {
+      final selected = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (sheetContext) => SafeArea(
+          child: ListTile(
+            leading: const Icon(Icons.delete_outline_rounded, color: primaryRed),
+            title: const Text(
+              'Delete Conversation',
+              style: TextStyle(color: primaryRed, fontWeight: FontWeight.w700),
+            ),
+            onTap: () => Navigator.pop(sheetContext, true),
+          ),
+        ),
+      );
+      if (selected != true || !mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            'Delete Conversation?',
+            style: TextStyle(color: darkText, fontWeight: FontWeight.w800),
+          ),
+          content: const Text(
+            'Are you sure you want to delete this conversation from your messages?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel', style: TextStyle(color: darkText)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: primaryRed, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      setState(() => _deletingIds.add(chatId));
+      await _chatService.deleteConversation(
+        chatId, expectedUserId: _currentUserId,
+      );
+      if (mounted) _showMessage('Conversation deleted.');
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(switch (error) {
+        FirebaseAuthException() =>
+          'Please sign in again before deleting conversations.',
+        FirebaseException(code: 'permission-denied') =>
+          'You do not have permission to delete this conversation.',
+        FirebaseException(code: 'not-found') =>
+          'This conversation is no longer available.',
+        _ => 'Unable to delete conversation. Check your connection and try again.',
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pendingDeletionIds.remove(chatId);
+          _deletingIds.remove(chatId);
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildAvatar(

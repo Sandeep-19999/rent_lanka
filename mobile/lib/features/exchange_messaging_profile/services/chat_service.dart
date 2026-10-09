@@ -91,6 +91,62 @@ class ChatService {
         .snapshots();
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchMyHiddenConversations() {
+    return _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('hidden_conversations')
+        .snapshots(includeMetadataChanges: true);
+  }
+
+  /// Deletes only this user's list entry. Shared chats and messages are intact.
+  Future<void> deleteConversation(String chatId, {String? expectedUserId}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw FirebaseAuthException(code: 'user-not-found');
+    final uid = user.uid;
+    if (expectedUserId != null && expectedUserId != uid) {
+      throw FirebaseAuthException(code: 'user-mismatch');
+    }
+    if (chatId.trim().isEmpty || chatId.contains('/')) {
+      throw ArgumentError('Invalid conversation ID.');
+    }
+    final chat = _firestore.collection('chats').doc(chatId);
+    final hidden = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('hidden_conversations')
+        .doc(chatId);
+    await _firestore.runTransaction<void>((transaction) async {
+      final document = await transaction.get(chat);
+      if (_auth.currentUser?.uid != uid) {
+        throw FirebaseAuthException(code: 'user-mismatch');
+      }
+      if (!document.exists) {
+        throw FirebaseException(plugin: 'cloud_firestore', code: 'not-found');
+      }
+      final participants = document.data()?['participants'];
+      if (participants is! List || !participants.contains(uid)) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
+      }
+      transaction.set(hidden, {'hiddenAt': FieldValue.serverTimestamp()});
+    });
+  }
+
+  /// A newer message restores visibility without modifying anybody's marker.
+  static bool isConversationHidden(
+    Map<String, dynamic> chat,
+    Map<String, dynamic>? visibility,
+  ) {
+    if (visibility == null) return false;
+    final hiddenAt = visibility['hiddenAt'];
+    final lastMessageAt = chat['lastMessageAt'];
+    if (hiddenAt is! Timestamp || lastMessageAt is! Timestamp) return true;
+    return lastMessageAt.compareTo(hiddenAt) <= 0;
+  }
+
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchChat(String chatId) {
     return _firestore.collection('chats').doc(chatId).snapshots();
   }

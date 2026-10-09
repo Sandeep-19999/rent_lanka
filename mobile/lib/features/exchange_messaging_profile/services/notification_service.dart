@@ -73,8 +73,45 @@ class NotificationService {
     });
   }
 
-  Future<void> deleteNotification(String notificationId) async {
-    await _firestore.collection('notifications').doc(notificationId).delete();
+  Future<void> deleteNotification(
+    String notificationId, {
+    String? expectedUserId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(code: 'user-not-found');
+    }
+    final uid = user.uid;
+    if (expectedUserId != null && expectedUserId != uid) {
+      throw FirebaseAuthException(code: 'user-mismatch');
+    }
+    if (notificationId.trim().isEmpty || notificationId.contains('/')) {
+      throw ArgumentError('Invalid notification ID.');
+    }
+    final reference = _firestore
+        .collection('notifications')
+        .doc(notificationId);
+    await _firestore.runTransaction<void>((transaction) async {
+      final notification = await transaction.get(reference);
+      if (_auth.currentUser?.uid != uid) {
+        throw FirebaseAuthException(code: 'user-mismatch');
+      }
+      if (!notification.exists) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'not-found',
+          message: 'This notification is no longer available.',
+        );
+      }
+      if (notification.data()?['userId'] != uid) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'You can only delete your own notifications.',
+        );
+      }
+      transaction.delete(reference);
+    });
   }
 
   Future<void> seedDemoNotifications() async {

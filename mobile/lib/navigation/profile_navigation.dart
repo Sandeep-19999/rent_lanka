@@ -54,6 +54,14 @@ Future<void> openProfile(BuildContext context, {bool retainRoot = false}) async 
   // Player Profile pops to the root on logout; Provider Profile redirects itself.
   if (screen is ProfileScreen && navigator.mounted &&
       FirebaseAuth.instance.currentUser == null) {
+    // Account deletion already replaced the stack with Create Account.
+    // Do not let the existing logout fallback replace that destination.
+    var atCreateAccount = false;
+    navigator.popUntil((route) {
+      atCreateAccount = route.settings.name == '/create-account';
+      return true;
+    });
+    if (atCreateAccount) return;
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
