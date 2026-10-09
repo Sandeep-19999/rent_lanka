@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/models/equipment_model.dart';
@@ -664,42 +665,5 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     );
   }
 
-  Widget _buildBottomNavigation() {
-    return BottomNavigationBar(
-      currentIndex: 1,
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: primaryRed,
-      unselectedItemColor: const Color(0xFF999999),
-      selectedFontSize: 10,
-      unselectedFontSize: 9,
-      onTap: (index) {
-        if (index == 0) {
-          Navigator.pop(context);
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.search_rounded),
-          label: 'Search',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.download_outlined),
-          label: 'Booking',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.chat_bubble_outline_rounded),
-          label: 'Messages',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline_rounded),
-          label: 'Profile',
-        ),
-      ],
-    );
-  }
+  Widget _buildBottomNavigation() => const PlayerBottomNavigation(currentIndex: 1);
 }

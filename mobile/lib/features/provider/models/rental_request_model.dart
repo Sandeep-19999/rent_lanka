@@ -5,6 +5,7 @@ class RentalRequestModel {
   final String providerId;
   final String equipmentId;
 
+  final String playerId;
   final String playerName;
   final String equipmentName;
 
@@ -30,6 +31,7 @@ class RentalRequestModel {
     required this.id,
     required this.providerId,
     required this.equipmentId,
+    this.playerId = '',
     required this.playerName,
     required this.equipmentName,
     required this.startDate,
@@ -48,20 +50,25 @@ class RentalRequestModel {
   factory RentalRequestModel.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
-    final data = document.data() ?? {};
+    return RentalRequestModel.fromData(document.id, document.data() ?? {});
+  }
+
+  factory RentalRequestModel.fromData(String id, Map<String, dynamic> data) {
 
     final dynamic totalAmountValue = data['totalAmount'];
     final dynamic verifiedValue = data['verifiedUser'];
     final dynamic reservedDatesValue = data['reservedDates'];
 
     return RentalRequestModel(
-      id: document.id,
+      id: id,
 
       providerId:
           data['providerId']?.toString() ?? '',
 
       equipmentId:
           data['equipmentId']?.toString() ?? '',
+
+      playerId: data['playerId']?.toString().trim() ?? '',
 
       playerName:
           data['playerName']?.toString() ?? 'Player',

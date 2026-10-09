@@ -4,6 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/services/favourite_service.dart';
+import '../provider/public_provider_screen.dart';
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/exchange_request_screen.dart';
+import 'package:rent_lanka_mobile/features/booking_payment/models/equipment_model.dart' as booking;
+import 'package:rent_lanka_mobile/features/booking_payment/screens/booking/booking_screen.dart';
 
 class EquipmentDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> equipment;
@@ -104,10 +108,56 @@ class _EquipmentDetailsScreenState
     );
   }
 
-  void _showComingSoon(String feature) {
-    _showMessage(
-      '$feature will be connected during module integration.',
+  void _requestExchange(Map<String, dynamic> equipment) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage('Please log in to request an exchange.');
+      return;
+    }
+
+    final equipmentId = _text(equipment, 'id');
+    final equipmentName = _text(equipment, 'name');
+    final providerId = _text(equipment, 'providerId');
+    if (equipmentId.isEmpty || equipmentName.isEmpty || providerId.isEmpty) {
+      _showMessage('Equipment information is incomplete. Please refresh the listing.');
+      return;
+    }
+    if (providerId == user.uid) {
+      _showMessage('You cannot request an exchange for your own equipment.');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExchangeRequestScreen(
+          requestedEquipmentId: equipmentId,
+          requestedEquipmentName: equipmentName,
+          requestedProviderId: providerId,
+        ),
+      ),
     );
+  }
+
+  void _bookEquipment(Map<String, dynamic> data) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage('Please log in to book equipment.');
+      return;
+    }
+    try {
+      final equipment = booking.Equipment.fromDiscovery(data);
+      if (equipment.providerId == user.uid) {
+        _showMessage('You cannot book your own equipment.');
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => BookingScreen(equipment: equipment)),
+      );
+    } on FormatException catch (error) {
+      _showMessage(error.message);
+    }
   }
 
   Future<void> _toggleFavourite(
@@ -539,6 +589,24 @@ class _EquipmentDetailsScreenState
   }
 
   Widget _buildRating(Map<String, dynamic> equipment) {
+    final id = _text(equipment, 'id');
+    if (id.isEmpty) return _ratingRow(equipment);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('reviews')
+          .where('equipmentId', isEqualTo: id).snapshots(),
+      builder: (context, snapshot) {
+        final ratings = snapshot.data?.docs.map((doc) => doc.data()['rating'])
+            .whereType<num>().where((value) => value >= 1 && value <= 5).toList() ?? [];
+        return _ratingRow({ ...equipment,
+          'rating': ratings.isEmpty ? 'N/A' :
+              (ratings.fold<double>(0, (total, value) => total + value) / ratings.length).toStringAsFixed(1),
+          'reviews': ratings.length.toString(),
+        });
+      },
+    );
+  }
+
+  Widget _ratingRow(Map<String, dynamic> equipment) {
     final rating = _text(equipment, 'rating', 'N/A');
 
     return Row(
@@ -603,13 +671,13 @@ class _EquipmentDetailsScreenState
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _providerTile('Equipment Provider');
+          return _providerTile('Equipment Provider', providerId: providerId);
         }
 
         final userData = snapshot.data?.data();
 
         if (userData == null) {
-          return _providerTile('Equipment Provider');
+          return _providerTile('Equipment Provider', providerId: providerId);
         }
 
         String providerName = _text(userData, 'name');
@@ -626,14 +694,20 @@ class _EquipmentDetailsScreenState
           providerName = 'Equipment Provider';
         }
 
-        return _providerTile(providerName);
+        return _providerTile(providerName, providerId: providerId);
       },
     );
   }
 
-  Widget _providerTile(String providerName) {
+  Widget _providerTile(String providerName, {String providerId = ''}) {
     return InkWell(
-      onTap: () => _showComingSoon('Provider profile'),
+      onTap: providerId.isEmpty
+          ? () => _showMessage('Provider information unavailable.')
+          : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PublicProviderScreen(providerId: providerId),
+                ),
+              ),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(13),
@@ -712,7 +786,7 @@ class _EquipmentDetailsScreenState
               height: 52,
               child: OutlinedButton(
                 onPressed: available
-                    ? () => _showComingSoon('Exchange request')
+                    ? () => _requestExchange(equipment)
                     : null,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: primaryRed,
@@ -737,7 +811,7 @@ class _EquipmentDetailsScreenState
               height: 52,
               child: ElevatedButton(
                 onPressed: available
-                    ? () => _showComingSoon('Equipment booking')
+                    ? () => _bookEquipment(equipment)
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryRed,
@@ -748,7 +822,7 @@ class _EquipmentDetailsScreenState
                   ),
                 ),
                 child: const Text(
-                  'Book Equipment',
+                  'Book Now',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

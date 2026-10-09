@@ -18,9 +18,7 @@ class ReviewService {
       return user.uid;
     }
 
-    // Temporary preview/testing fallback.
-    // rental_requests currently use demo_player.
-    return 'demo_player';
+    throw StateError('Please log in to continue.');
   }
 
   String _reviewDocumentId(String bookingId) {
@@ -77,28 +75,28 @@ class ReviewService {
       throw Exception('Review comment cannot be empty.');
     }
 
-    final reference = _firestore
-        .collection('reviews')
-        .doc(_reviewDocumentId(bookingId));
-
-    final existingDocument = await reference.get();
-
-    final Map<String, dynamic> reviewData = {
-      'reviewerId': currentUserId,
-      'providerId': providerId,
-      'equipmentId': equipmentId,
-      'bookingId': bookingId,
-      'rating': rating,
-      'comment': cleanComment,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (!existingDocument.exists) {
-      reviewData['createdAt'] = FieldValue.serverTimestamp();
-    }
-
-    await reference.set(reviewData, SetOptions(merge: true));
+    final uid = currentUserId;
+    final reference = _firestore.collection('reviews').doc('${uid}_$bookingId');
+    await _firestore.runTransaction((transaction) async {
+      final rental = await transaction.get(_firestore.collection('rental_requests').doc(bookingId));
+      final existing = await transaction.get(reference);
+      if (currentUserId != uid) throw StateError('Please log in again.');
+      final data = rental.data() ?? {};
+      if (!canReview(data, uid) || data['equipmentId'] != equipmentId ||
+          data['providerId'] != providerId) {
+        throw Exception('Only your completed rental can be reviewed.');
+      }
+      transaction.set(reference, {
+        'reviewerId': uid, 'providerId': providerId, 'equipmentId': equipmentId,
+        'bookingId': bookingId, 'rating': rating, 'comment': cleanComment,
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (!existing.exists) 'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
   }
+
+  static bool canReview(Map<String, dynamic> rental, String uid) =>
+      uid.isNotEmpty && rental['playerId'] == uid && rental['status']?.toString().trim().toLowerCase() == 'completed';
 
   Future<void> deleteReview(String bookingId) async {
     final reference = _firestore

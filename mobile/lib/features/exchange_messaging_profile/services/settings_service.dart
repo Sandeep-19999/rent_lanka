@@ -16,12 +16,11 @@ class SettingsService {
       return user.uid;
     }
 
-    // Temporary preview/testing fallback.
-    return 'demo_member3_user';
+    throw StateError('Please log in to continue.');
   }
 
-  Stream<bool> watchNotificationPreference() {
-    return _firestore.collection('users').doc(currentUserId).snapshots().map((
+  Stream<bool> watchNotificationPreference() async* {
+    yield* _firestore.collection('users').doc(currentUserId).snapshots().map((
       document,
     ) {
       final data = document.data();

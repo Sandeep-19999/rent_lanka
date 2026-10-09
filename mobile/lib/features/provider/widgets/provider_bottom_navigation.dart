@@ -1,3 +1,4 @@
+import '../../../navigation/profile_navigation.dart';
 import 'package:flutter/material.dart';
 
 import '../../exchange_messaging_profile/screens/messages_screen.dart';
@@ -13,11 +14,17 @@ class ProviderBottomNavigation extends StatelessWidget {
 
   void _navigate(BuildContext context, int index) {
     if (index == currentIndex) return;
+    if (index == 4) {
+      openProfile(context);
+      return;
+    }
     final Widget screen = switch (index) {
       0 => const ProviderDashboard(),
       1 => const MyListingsScreen(),
       2 => const RentalRequestsScreen(),
-      3 => const MessagesScreen(),
+      3 => const MessagesScreen(
+        bottomNavigationBar: ProviderBottomNavigation(currentIndex: 3),
+      ),
       _ => const ProviderProfileScreen(),
     };
     final route = MaterialPageRoute<void>(builder: (_) => screen);

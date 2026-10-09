@@ -18,13 +18,11 @@ class CompletedRentalService {
       return user.uid;
     }
 
-    // Temporary preview/testing fallback.
-    // Firebase rental_requests currently use demo_player.
-    return 'demo_player';
+    throw StateError('Please log in to continue.');
   }
 
-  Stream<List<ReviewEquipmentOption>> watchCompletedRentals() {
-    return _firestore
+  Stream<List<ReviewEquipmentOption>> watchCompletedRentals() async* {
+    yield* _firestore
         .collection('rental_requests')
         .where('playerId', isEqualTo: currentPlayerId)
         .snapshots()

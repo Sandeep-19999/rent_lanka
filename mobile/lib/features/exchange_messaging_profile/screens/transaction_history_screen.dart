@@ -1,3 +1,5 @@
+import '../services/transaction_service.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/transaction_record.dart';
@@ -28,38 +30,23 @@ class _TransactionHistoryScreenState
     'Refunds',
   ];
 
-  // Preview data.
-  // Later this can be replaced with Booking/Payment Firebase data.
-  static const List<TransactionRecord> transactions = [
-    TransactionRecord(
-      reference: 'SG-1048',
-      type: 'Payment',
-      date: '10 Sep 2026',
-      status: 'Confirmed',
-      amount: 'Rs. 10,400',
-      isRefund: false,
-      equipmentName: 'SS Cricket Bat',
-      providerName: 'Kamal Sports Gear',
-      paymentMethod: 'Visa ending 4242',
-      description:
-          'Payment for the rental of SS Cricket Bat. '
-          'The booking and payment were confirmed successfully.',
-    ),
-    TransactionRecord(
-      reference: 'SG-0991',
-      type: 'Refund',
-      date: '6 Aug 2026',
-      status: 'Completed',
-      amount: 'Rs. 2,000',
-      isRefund: true,
-      equipmentName: 'Yonex Badminton Racket',
-      providerName: 'City Sports Shop',
-      paymentMethod: 'Visa ending 4242',
-      description:
-          'Refund issued for the cancelled equipment rental. '
-          'The refund has been completed successfully.',
-    ),
-  ];
+  List<TransactionRecord> transactions = [];
+  StreamSubscription<List<TransactionRecord>>? _subscription;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = TransactionService().watchMyTransactions().listen((records) {
+      if (mounted) setState(() { transactions = records; _loading = false; _error = null; });
+    }, onError: (Object error) {
+      if (mounted) setState(() { _loading = false; _error = error.toString(); });
+    });
+  }
+
+  @override
+  void dispose() { _subscription?.cancel(); super.dispose(); }
 
   List<TransactionRecord> get _filteredTransactions {
     switch (_selectedFilter) {
@@ -146,7 +133,11 @@ class _TransactionHistoryScreenState
 
                       const SizedBox(height: 18),
 
-                      if (filtered.isEmpty)
+                      if (_loading)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_error != null)
+                        Text(_error!, style: const TextStyle(color: primaryRed))
+                      else if (filtered.isEmpty)
                         _buildEmptyState()
                       else
                         ...filtered.map(

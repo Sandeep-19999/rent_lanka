@@ -1,3 +1,4 @@
+import '../../exchange_messaging_profile/screens/notifications_screen.dart';
 import '../widgets/provider_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -604,10 +605,9 @@ class ProviderDashboard extends StatelessWidget {
 
         IconButton(
           onPressed: () {
-            _showComingSoon(
-              context,
-              'Notifications',
-            );
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const NotificationsScreen(),
+            ));
           },
           icon: const Icon(
             Icons
@@ -869,19 +869,7 @@ class ProviderDashboard extends StatelessWidget {
     );
   }
 
-  static void _showComingSoon(
-    BuildContext context,
-    String screenName,
-  ) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '$screenName will be connected later.',
-        ),
-      ),
-    );
-  }
+
 }
 
 // ===========================================================

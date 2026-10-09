@@ -1,3 +1,5 @@
+import '../models/chat_context.dart';
+import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -5,7 +7,9 @@ import '../services/chat_service.dart';
 import 'chat_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
-  const MessagesScreen({super.key});
+  final Widget? bottomNavigationBar;
+
+  const MessagesScreen({super.key, this.bottomNavigationBar});
 
   @override
   State<MessagesScreen> createState() => _MessagesScreenState();
@@ -32,6 +36,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: widget.bottomNavigationBar ??
+          const PlayerBottomNavigation(currentIndex: 3),
       backgroundColor: backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -238,6 +244,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
             return _buildConversationCard(
               chatId: document.id,
+              chatContext: ChatContext.fromData(data),
               otherUserId: otherUserId,
               otherUserName: otherUserName,
               lastMessage: lastMessage,
@@ -252,6 +259,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget _buildConversationCard({
     required String chatId,
+    required ChatContext chatContext,
     required String otherUserId,
     required String otherUserName,
     required String lastMessage,
@@ -280,6 +288,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     builder: (_) => ChatScreen(
                       chatId: chatId,
                       chatName: otherUserName,
+                      equipmentName: chatContext.equipmentName,
+                      contextType: chatContext.contextType,
                       otherUserId: otherUserId,
                     ),
                   ),
@@ -343,6 +353,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         ),
                       ],
                     ),
+                    if (chatContext.label.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        chatContext.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: greyText, fontSize: 12),
+                      ),
+                    ],
                     const SizedBox(height: 7),
                     Row(
                       children: [

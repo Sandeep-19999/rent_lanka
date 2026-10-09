@@ -1,3 +1,4 @@
+import '../models/chat_context.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -7,12 +8,16 @@ class ChatScreen extends StatefulWidget {
   final String chatId;
   final String chatName;
   final String otherUserId;
+  final String equipmentName;
+  final String contextType;
 
   const ChatScreen({
     super.key,
     required this.chatId,
     required this.chatName,
     required this.otherUserId,
+    this.equipmentName = '',
+    this.contextType = '',
   });
 
   @override
@@ -38,6 +43,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final ChatService _chatService =
       ChatService();
+
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _chatDocument =
+      _chatService.watchChat(widget.chatId);
 
   final TextEditingController
       _messageController =
@@ -149,6 +157,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final contextLabel = ChatContext(
+      equipmentName: widget.equipmentName,
+      contextType: widget.contextType,
+    ).label;
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -188,14 +200,24 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'Rent Lanka chat',
-                    style: TextStyle(
-                      color: greyText,
-                      fontSize: 11,
-                      fontWeight:
-                          FontWeight.w400,
-                    ),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: _chatDocument,
+                    builder: (context, snapshot) {
+                      final savedLabel = ChatContext.fromData(
+                        snapshot.data?.data() ?? {},
+                      ).label;
+                      final label = savedLabel.isNotEmpty ? savedLabel : contextLabel;
+                      return Text(
+                        label.isEmpty ? 'Rent Lanka chat' : label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: greyText,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

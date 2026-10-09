@@ -21,7 +21,7 @@ class AuthService {
       return user.uid;
     }
 
-    return 'demo_provider';
+    throw StateError('Please log in to access your provider account.');
   }
 
   // EMAIL + PASSWORD SIGN IN

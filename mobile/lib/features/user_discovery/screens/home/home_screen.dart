@@ -1,9 +1,8 @@
+import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 
 import 'package:flutter/material.dart';
-import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/messages_screen.dart';
 import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/notifications_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:rent_lanka_mobile/navigation/profile_navigation.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/models/equipment_model.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/services/equipment_service.dart';
@@ -36,7 +35,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late final Stream<List<EquipmentModel>> _equipmentStream;
 
-  int _selectedIndex = 0;
   String _userName = 'Player';
 
   final List<Map<String, dynamic>> _categories = [
@@ -188,42 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  void _onBottomNavigationTap(int index) {
-    if (index == 0) {
-      setState(() {
-        _selectedIndex = 0;
-      });
-      return;
-    }
-
-    if (index == 1) {
-      _openSearchScreen();
-      return;
-    }
-
-    if (index == 3) {
-      setState(() {
-        _selectedIndex = 0;
-      });
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const MessagesScreen()),
-      );
-      return;
-    }
-
-    if (index == 4) {
-      setState(() {
-        _selectedIndex = 0;
-      });
-      openProfile(context);
-      return;
-    }
-
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   @override
@@ -810,45 +772,5 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNavigation() {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      onTap: _onBottomNavigationTap,
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: primaryRed,
-      unselectedItemColor:
-          const Color(0xFF999999),
-      selectedFontSize: 10,
-      unselectedFontSize: 9,
-      elevation: 8,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home_rounded),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.search_rounded),
-          label: 'Search',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.download_outlined),
-          label: 'Booking',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(
-            Icons.chat_bubble_outline_rounded,
-          ),
-          label: 'Messages',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(
-            Icons.person_outline_rounded,
-          ),
-          label: 'Profile',
-        ),
-      ],
-    );
-  }
+  Widget _buildBottomNavigation() => const PlayerBottomNavigation(currentIndex: 0);
 }

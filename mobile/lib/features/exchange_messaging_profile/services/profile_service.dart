@@ -24,11 +24,11 @@ class ProfileService {
       return user.uid;
     }
 
-    return 'demo_member3_user';
+    throw StateError('Please log in to continue.');
   }
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> watchProfile() {
-    return _firestore.collection('users').doc(currentUserId).snapshots();
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchProfile() async* {
+    yield* _firestore.collection('users').doc(currentUserId).snapshots();
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> getProfile() {
