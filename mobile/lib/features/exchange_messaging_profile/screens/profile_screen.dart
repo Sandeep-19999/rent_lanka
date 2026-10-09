@@ -5,6 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/profile_service.dart';
+import '../services/account_deletion_service.dart';
+import '../widgets/delete_account_dialog.dart';
+import '../../user_discovery/screens/auth/signup_screen.dart';
 import 'edit_profile_screen.dart';
 import 'help_support_screen.dart';
 import 'settings_screen.dart';
@@ -224,6 +227,17 @@ class ProfileScreen extends StatelessWidget {
                         ],
                       ),
 
+                      const SizedBox(height: 16),
+                      _buildMenuContainer(children: [
+                        _buildMenuTile(
+                          icon: Icons.delete_outline_rounded,
+                          iconColor: primaryRed,
+                          iconBackground: const Color(0xFFFFEEF1),
+                          title: 'Delete Account',
+                          subtitle: 'Permanently delete your account',
+                          onTap: () => _showDeleteAccountDialog(context),
+                        ),
+                      ]),
                       const SizedBox(height: 26),
 
                       SizedBox(
@@ -632,6 +646,22 @@ class ProfileScreen extends StatelessWidget {
         height: 1,
         color: borderColor,
       ),
+    );
+  }
+
+  Future<void> _showDeleteAccountDialog(BuildContext context) async {
+    final deleted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DeleteAccountDialog(service: AccountDeletionService()),
+    );
+    if (deleted != true || !context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/create-account'),
+        builder: (_) => const SignUpScreen(),
+      ),
+      (_) => false,
     );
   }
 
