@@ -60,30 +60,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     icon: Icons.credit_card,
                   ),
 
-                  const Spacer(),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton.icon(
-                      onPressed: _showAddCardDialog,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryRed,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                      icon: const Icon(Icons.add),
-                      label: const Text(
-                        'Add payment method',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -196,47 +172,4 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     );
   }
 
-  Future<void> _showAddCardDialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Add payment method'),
-          content: const TextField(
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Card number',
-              hintText: '•••• •••• •••• ••••',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Payment method integration will use the Booking & Payment module.',
-                    ),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryRed,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 }

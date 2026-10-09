@@ -12,6 +12,7 @@ class EquipmentModel {
   final String status;
   final bool isAvailable;
   final String imageUrl;
+  final String? imagePublicId;
   final List<String> unavailableDates;
   final DateTime? createdAt;
 
@@ -27,6 +28,7 @@ class EquipmentModel {
     required this.status,
     required this.isAvailable,
     required this.imageUrl,
+    this.imagePublicId,
     required this.unavailableDates,
     required this.createdAt,
   });
@@ -34,29 +36,29 @@ class EquipmentModel {
   factory EquipmentModel.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
-    final data = document.data() ?? {};
+    return EquipmentModel.fromData(document.id, document.data() ?? {});
+  }
 
+  factory EquipmentModel.fromData(String id, Map<String, dynamic> data) {
     final priceValue = data['pricePerDay'];
 
     final unavailableValue = data['unavailableDates'];
 
     return EquipmentModel(
-      id: document.id,
+      id: id,
       name: data['name']?.toString() ?? '',
       category: data['category']?.toString() ?? '',
       brand: data['brand']?.toString() ?? '',
       size: data['size']?.toString() ?? '',
       condition: data['condition']?.toString() ?? '',
-      pricePerDay:
-          priceValue is num ? priceValue.toDouble() : 0,
+      pricePerDay: priceValue is num ? priceValue.toDouble() : 0,
       providerId: data['providerId']?.toString() ?? '',
       status: data['status']?.toString() ?? 'Available',
       isAvailable: data['isAvailable'] != false,
       imageUrl: data['imageUrl']?.toString() ?? '',
+      imagePublicId: data['imagePublicId']?.toString(),
       unavailableDates: unavailableValue is List
-          ? unavailableValue
-              .map((date) => date.toString())
-              .toList()
+          ? unavailableValue.map((date) => date.toString()).toList()
           : <String>[],
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
@@ -76,6 +78,7 @@ class EquipmentModel {
       'status': status,
       'isAvailable': isAvailable,
       'imageUrl': imageUrl,
+      if (imagePublicId != null) 'imagePublicId': imagePublicId,
       'unavailableDates': unavailableDates,
     };
   }
@@ -92,6 +95,7 @@ class EquipmentModel {
     String? status,
     bool? isAvailable,
     String? imageUrl,
+    String? imagePublicId,
     List<String>? unavailableDates,
     DateTime? createdAt,
   }) {
@@ -107,8 +111,8 @@ class EquipmentModel {
       status: status ?? this.status,
       isAvailable: isAvailable ?? this.isAvailable,
       imageUrl: imageUrl ?? this.imageUrl,
-      unavailableDates:
-          unavailableDates ?? this.unavailableDates,
+      imagePublicId: imagePublicId ?? this.imagePublicId,
+      unavailableDates: unavailableDates ?? this.unavailableDates,
       createdAt: createdAt ?? this.createdAt,
     );
   }

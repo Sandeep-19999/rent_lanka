@@ -22,10 +22,12 @@ class UserProfileModel {
   factory UserProfileModel.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
-    final data = document.data() ?? {};
+    return UserProfileModel.fromData(document.id, document.data() ?? {});
+  }
 
+  factory UserProfileModel.fromData(String id, Map<String, dynamic> data) {
     return UserProfileModel(
-      id: document.id,
+      id: id,
       name: data['name']?.toString() ?? '',
       email: data['email']?.toString() ?? '',
       phone: data['phone']?.toString() ?? '',

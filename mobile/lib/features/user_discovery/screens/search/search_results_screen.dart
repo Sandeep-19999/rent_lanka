@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/features/provider/services/cloudinary_service.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 
@@ -471,7 +472,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               clipBehavior: Clip.antiAlias,
               child: hasImage
                   ? Image.network(
-                      imageUrl,
+                      equipmentThumbnailUrl(imageUrl),
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => Icon(
                         _getEquipmentIcon(equipment.category),
