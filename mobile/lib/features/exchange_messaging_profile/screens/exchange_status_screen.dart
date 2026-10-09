@@ -1,3 +1,4 @@
+import '../widgets/exchange_offer_details.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -214,6 +215,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                             requestedEquipment,
                         offeredEquipment: offeredEquipment,
                       ),
+                      ExchangeOfferDetails(data: data),
 
                       const SizedBox(height: 24),
 

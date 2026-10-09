@@ -2,20 +2,21 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+
+import '../../provider/services/cloudinary_service.dart';
 
 class ProfileService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
-  final FirebaseStorage _storage;
+  final CloudinaryService _cloudinary;
 
   ProfileService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
-    FirebaseStorage? storage,
+    CloudinaryService? cloudinary,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _auth = auth ?? FirebaseAuth.instance,
-       _storage = storage ?? FirebaseStorage.instance;
+       _cloudinary = cloudinary ?? CloudinaryService();
 
   String get currentUserId {
     final user = _auth.currentUser;
@@ -35,28 +36,31 @@ class ProfileService {
     return _firestore.collection('users').doc(currentUserId).get();
   }
 
-  Future<String> uploadProfilePhoto({
+  Future<CloudinaryUploadResult> uploadProfilePhoto({
     required Uint8List imageBytes,
     required String fileName,
   }) async {
-    final String extension = _getFileExtension(fileName);
-
-    final Reference storageReference = _storage
-        .ref()
-        .child('profile_photos')
-        .child(currentUserId)
-        .child('profile.$extension');
-
-    final String contentType = _getContentType(extension);
-
-    final UploadTask uploadTask = storageReference.putData(
+    final uid = currentUserId;
+    final result = await _cloudinary.uploadImage(
       imageBytes,
-      SettableMetadata(contentType: contentType),
+      filename: fileName,
     );
+    if (currentUserId != uid) {
+      throw StateError('Your login changed. Please reopen Edit Profile.');
+    }
+    return result;
+  }
 
-    final TaskSnapshot snapshot = await uploadTask;
-
-    return snapshot.ref.getDownloadURL();
+  static Map<String, dynamic> photoChanges({
+    String? photoUrl,
+    String? photoPublicId,
+  }) {
+    if (photoUrl == null) return {};
+    final uri = Uri.tryParse(photoUrl);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+      throw ArgumentError('The uploaded profile photo URL is invalid.');
+    }
+    return {'photoUrl': photoUrl, 'photoPublicId': ?photoPublicId};
   }
 
   Future<void> saveProfile({
@@ -64,22 +68,32 @@ class ProfileService {
     required String email,
     required String phone,
     required String location,
-    required String photoUrl,
+    String? photoUrl,
+    String? photoPublicId,
+    required String expectedUserId,
   }) async {
+    final uid = currentUserId;
+    if (uid != expectedUserId) {
+      throw StateError('Your login changed. Please reopen Edit Profile.');
+    }
+    final photos = photoChanges(
+      photoUrl: photoUrl,
+      photoPublicId: photoPublicId,
+    );
     final DocumentReference<Map<String, dynamic>> documentReference = _firestore
         .collection('users')
-        .doc(currentUserId);
+        .doc(uid);
 
     final DocumentSnapshot<Map<String, dynamic>> existing =
         await documentReference.get();
 
     final Map<String, dynamic> data = {
-      'userId': currentUserId,
+      'userId': uid,
       'name': name.trim(),
       'email': email.trim(),
       'phone': phone.trim(),
       'location': location.trim(),
-      'photoUrl': photoUrl,
+      ...photos,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -88,40 +102,9 @@ class ProfileService {
       data['isVerified'] = true;
     }
 
+    if (currentUserId != uid) {
+      throw StateError('Your login changed. Please reopen Edit Profile.');
+    }
     await documentReference.set(data, SetOptions(merge: true));
-  }
-
-  String _getFileExtension(String fileName) {
-    final List<String> parts = fileName.split('.');
-
-    if (parts.length < 2) {
-      return 'jpg';
-    }
-
-    final String extension = parts.last.toLowerCase();
-
-    if (extension == 'png' ||
-        extension == 'jpg' ||
-        extension == 'jpeg' ||
-        extension == 'webp') {
-      return extension;
-    }
-
-    return 'jpg';
-  }
-
-  String _getContentType(String extension) {
-    switch (extension) {
-      case 'png':
-        return 'image/png';
-
-      case 'webp':
-        return 'image/webp';
-
-      case 'jpeg':
-      case 'jpg':
-      default:
-        return 'image/jpeg';
-    }
   }
 }

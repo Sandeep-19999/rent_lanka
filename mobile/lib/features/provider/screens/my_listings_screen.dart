@@ -1,3 +1,4 @@
+import '../services/cloudinary_service.dart';
 import '../widgets/provider_bottom_navigation.dart';
 // // import 'package:flutter/material.dart';
 // // import 'add_equipment_screen.dart';
@@ -1071,6 +1072,7 @@ class MyListingsScreen extends StatelessWidget {
                             equipmentId:
                                 equipment.id,
                             name: equipment.name,
+                            imageUrl: equipment.imageUrl,
                             category:
                                 equipment.category,
                             condition:
@@ -1100,6 +1102,7 @@ class MyListingsScreen extends StatelessWidget {
     required BuildContext context,
     required String equipmentId,
     required String name,
+    required String imageUrl,
     required String category,
     required String condition,
     required String status,
@@ -1142,11 +1145,11 @@ class MyListingsScreen extends StatelessWidget {
                 borderRadius:
                     BorderRadius.circular(12),
               ),
-              child: Icon(
-                _getCategoryIcon(category),
-                size: 32,
-                color: Colors.black87,
-              ),
+              clipBehavior: Clip.antiAlias,
+              child: imageUrl.isEmpty
+                  ? Icon(_getCategoryIcon(category), size: 32, color: Colors.black87)
+                  : Image.network(equipmentThumbnailUrl(imageUrl), fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) => Icon(_getCategoryIcon(category), size: 32)),
             ),
 
             const SizedBox(width: 14),

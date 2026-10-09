@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/features/provider/services/cloudinary_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -289,7 +290,7 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
                     child: imageUrl.startsWith('http://') ||
                             imageUrl.startsWith('https://')
                         ? Image.network(
-                            imageUrl,
+                            equipmentThumbnailUrl(imageUrl),
                             fit: BoxFit.cover,
                             errorBuilder: (_, error, stackTrace) {
                               return Icon(

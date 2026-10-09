@@ -1,3 +1,4 @@
+import 'my_exchanges_screen.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -120,6 +121,16 @@ class ProfileScreen extends StatelessWidget {
 
                       _buildMenuContainer(
                         children: [
+                          _buildMenuTile(
+                            icon: Icons.swap_horiz_rounded,
+                            iconColor: primaryRed,
+                            iconBackground: const Color(0xFFFFEEF1),
+                            title: 'My Exchanges',
+                            subtitle: 'Your sent and received exchange requests',
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                              builder: (_) => const MyExchangesScreen())),
+                          ),
+                          _divider(),
                           _buildMenuTile(
                             icon: Icons.person_outline_rounded,
                             iconColor: primaryRed,

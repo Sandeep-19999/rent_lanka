@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/features/provider/services/cloudinary_service.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 
 import 'package:flutter/material.dart';
@@ -672,7 +673,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: const Color(0xFFF8F8F8),
                   child: hasImage
                       ? Image.network(
-                          imageUrl,
+                          equipmentThumbnailUrl(imageUrl),
                           fit: BoxFit.cover,
                           errorBuilder: (
                             context,

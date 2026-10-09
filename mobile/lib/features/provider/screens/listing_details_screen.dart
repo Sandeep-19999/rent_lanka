@@ -105,7 +105,7 @@ class ListingDetailsScreen extends StatelessWidget {
 
                       const SizedBox(height: 28),
 
-                      // Equipment image placeholder
+                      // Equipment image
                       Container(
                         width: double.infinity,
                         height: 190,
@@ -116,13 +116,11 @@ class ListingDetailsScreen extends StatelessWidget {
                           borderRadius:
                               BorderRadius.circular(18),
                         ),
-                        child: Icon(
-                          _getCategoryIcon(
-                            equipment.category,
-                          ),
-                          size: 80,
-                          color: Colors.black54,
-                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: equipment.imageUrl.isEmpty
+                            ? Icon(_getCategoryIcon(equipment.category), size: 80, color: Colors.black54)
+                            : Image.network(equipment.imageUrl, fit: BoxFit.cover,
+                                errorBuilder: (context, error, stack) => Icon(_getCategoryIcon(equipment.category), size: 80, color: Colors.black54)),
                       ),
 
                       const SizedBox(height: 22),
