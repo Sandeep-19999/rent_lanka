@@ -1,3 +1,4 @@
+import '../widgets/exchange_offer_details.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -415,6 +416,7 @@ class _IncomingExchangeRequestScreenState
                         offeredEquipment:
                             offeredEquipment,
                       ),
+                      ExchangeOfferDetails(data: data),
 
                       if (message
                           .isNotEmpty) ...[

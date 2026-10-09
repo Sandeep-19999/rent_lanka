@@ -1,3 +1,5 @@
+import '../../exchange_messaging_profile/screens/my_exchanges_screen.dart';
+import '../../exchange_messaging_profile/services/exchange_service.dart';
 import '../../exchange_messaging_profile/screens/notifications_screen.dart';
 import '../widgets/provider_bottom_navigation.dart';
 import 'package:flutter/material.dart';
@@ -355,6 +357,24 @@ class ProviderDashboard extends StatelessWidget {
                         height: 14,
                       ),
 
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: ExchangeService().watchIncomingExchangeRequests(),
+                        builder: (context, snapshot) {
+                          final pending = snapshot.data?.docs.where((doc) =>
+                            doc.data()['status']?.toString().toLowerCase() == 'pending').length;
+                          return _ManagementCard(
+                            icon: Icons.swap_horiz_rounded,
+                            title: 'Exchange Requests',
+                            subtitle: snapshot.hasError ? 'View sent and received exchanges' :
+                                pending == null ? 'Loading exchanges…' : '$pending pending • Sent & received',
+                            badgeText: pending?.toString() ?? '–',
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                              builder: (_) => const MyExchangesScreen(showReceivedFirst: true))),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
                       _ManagementCard(
                         icon: Icons
                             .shopping_bag_outlined,
@@ -531,91 +551,42 @@ class ProviderDashboard extends StatelessWidget {
   // HEADER
   // =========================================================
 
-  Widget _buildHeader(
-    BuildContext context,
-  ) {
+  Widget _buildHeader(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final authName = user?.displayName?.trim() ?? '';
     final fallbackName = authName.isNotEmpty ? authName : 'Provider';
-
-    return Row(
-      children: [
-        const CircleAvatar(
-          radius: 24,
-          backgroundColor:
-              Color(
-            0xFFE8E8E8,
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: user == null ? null : FirebaseFirestore.instance
+          .collection('users').doc(user.uid).snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data();
+        final name = data?['name']?.toString().trim() ?? '';
+        final photo = data?['photoUrl']?.toString().trim() ?? '';
+        const avatarIcon = Icon(Icons.person, color: Colors.black54, size: 28);
+        return Row(children: [
+          CircleAvatar(
+            radius: 24, backgroundColor: const Color(0xFFE8E8E8),
+            child: photo.isEmpty ? avatarIcon : ClipOval(
+              child: Image.network(photo, key: ValueKey(photo), width: 48, height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stack) => avatarIcon),
+            ),
           ),
-          child: Icon(
-            Icons.person,
-            color:
-                Colors.black54,
-            size: 28,
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Welcome back,', style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 3),
+            Text(name.isNotEmpty ? name : fallbackName, maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+          ])),
+          IconButton(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const NotificationsScreen())),
+            icon: const Icon(Icons.notifications_none_rounded, size: 27),
           ),
-        ),
-
-        const SizedBox(
-          width: 12,
-        ),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
-            children: [
-              const Text(
-                'Welcome back,',
-                style: TextStyle(
-                  fontSize: 13,
-                  color:
-                      Colors.grey,
-                ),
-              ),
-
-              const SizedBox(
-                height: 3,
-              ),
-
-              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: user == null
-                    ? null
-                    : FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .snapshots(),
-                builder: (context, snapshot) {
-                  final name = snapshot.data?.data()?['name']
-                          ?.toString().trim() ??
-                      '';
-                  return Text(
-                    name.isNotEmpty ? name : fallbackName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-
-        IconButton(
-          onPressed: () {
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const NotificationsScreen(),
-            ));
-          },
-          icon: const Icon(
-            Icons
-                .notifications_none_rounded,
-            size: 27,
-          ),
-        ),
-      ],
+        ]);
+      },
     );
   }
 
