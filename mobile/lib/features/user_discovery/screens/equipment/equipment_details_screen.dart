@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/services/favourite_service.dart';
+import '../../widgets/equipment_rating.dart';
 import '../provider/public_provider_screen.dart';
 import 'package:rent_lanka_mobile/features/exchange_messaging_profile/screens/exchange_request_screen.dart';
 import 'package:rent_lanka_mobile/features/booking_payment/models/equipment_model.dart' as booking;
@@ -238,7 +239,7 @@ class _EquipmentDetailsScreenState
 
         final equipment = <String, dynamic>{
           ...widget.equipment,
-          if (liveData != null) ...liveData,
+          ...?liveData,
           'id': equipmentId,
         };
 
@@ -589,66 +590,9 @@ class _EquipmentDetailsScreenState
   }
 
   Widget _buildRating(Map<String, dynamic> equipment) {
-    final id = _text(equipment, 'id');
-    if (id.isEmpty) return _ratingRow(equipment);
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('reviews')
-          .where('equipmentId', isEqualTo: id).snapshots(),
-      builder: (context, snapshot) {
-        final ratings = snapshot.data?.docs.map((doc) => doc.data()['rating'])
-            .whereType<num>().where((value) => value >= 1 && value <= 5).toList() ?? [];
-        return _ratingRow({ ...equipment,
-          'rating': ratings.isEmpty ? 'N/A' :
-              (ratings.fold<double>(0, (total, value) => total + value) / ratings.length).toStringAsFixed(1),
-          'reviews': ratings.length.toString(),
-        });
-      },
-    );
-  }
-
-  Widget _ratingRow(Map<String, dynamic> equipment) {
-    final rating = _text(equipment, 'rating', 'N/A');
-
-    return Row(
-      children: [
-        const Text(
-          'Equipment rating',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: darkText,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 9,
-            vertical: 5,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF4E5),
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.star_rounded,
-                color: Color(0xFFFFA000),
-                size: 16,
-              ),
-              const SizedBox(width: 3),
-              Text(
-                rating,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFFE99700),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return EquipmentRating(
+      equipmentId: _text(equipment, 'id'),
+      equipmentName: _text(equipment, 'name', 'Equipment'),
     );
   }
 

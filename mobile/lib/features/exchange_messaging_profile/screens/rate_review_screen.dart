@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../models/review_equipment_option.dart';
+import '../models/review_model.dart';
 import '../services/completed_rental_service.dart';
 import '../services/review_service.dart';
 
 class RateReviewScreen extends StatefulWidget {
   final String? initialBookingId;
-  const RateReviewScreen({super.key, this.initialBookingId});
+  final String? equipmentId;
+  final String? equipmentName;
+  final bool showEditor;
+  final ReviewService? reviewService;
+  final CompletedRentalService? completedRentalService;
+  const RateReviewScreen({
+    super.key,
+    this.initialBookingId,
+    this.equipmentId,
+    this.equipmentName,
+    this.showEditor = false,
+    this.reviewService,
+    this.completedRentalService,
+  });
 
   @override
   State<RateReviewScreen> createState() => _RateReviewScreenState();
@@ -22,10 +36,15 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
 
   final TextEditingController _reviewController = TextEditingController();
 
-  final ReviewService _reviewService = ReviewService();
+  late final ReviewService _reviewService = widget.reviewService ?? ReviewService();
 
-  final CompletedRentalService _completedRentalService =
-      CompletedRentalService();
+  late final CompletedRentalService _completedRentalService =
+      widget.completedRentalService ?? CompletedRentalService();
+  late final Stream<List<ReviewEquipmentOption>> _completedRentals =
+      _completedRentalService.watchCompletedRentals();
+  late final Stream<List<ReviewModel>> _equipmentReviews =
+      _reviewService.watchEquipmentReviews(widget.equipmentId!);
+  final Map<String, Future<String>> _reviewerNames = {};
 
   ReviewEquipmentOption? _selectedEquipment;
 
@@ -320,8 +339,11 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.equipmentId != null && !widget.showEditor) {
+      return _buildEquipmentReviews();
+    }
     return StreamBuilder<List<ReviewEquipmentOption>>(
-      stream: _completedRentalService.watchCompletedRentals(),
+      stream: _completedRentals,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _buildErrorScreen();
@@ -339,8 +361,9 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
           );
         }
 
-        final List<ReviewEquipmentOption> rentals =
-            snapshot.data ?? [];
+        final List<ReviewEquipmentOption> rentals = (snapshot.data ?? [])
+            .where((rental) => widget.equipmentId == null ||
+                rental.equipmentId == widget.equipmentId).toList();
 
         if (rentals.isEmpty) {
           return _buildEmptyScreen();
@@ -350,6 +373,141 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
 
         return _buildMainScreen(rentals);
       },
+    );
+  }
+
+  Widget _buildEquipmentReviews() {
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: darkText),
+        ),
+        titleSpacing: 0,
+        title: const Text('Ratings & Reviews',
+          style: TextStyle(color: darkText, fontSize: 20, fontWeight: FontWeight.w800)),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: StreamBuilder<List<ReviewModel>>(
+              stream: _equipmentReviews,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(child: Padding(
+                    padding: EdgeInsets.all(30),
+                    child: Text('Unable to load ratings and reviews. Please try again.'),
+                  ));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator(color: primaryRed));
+                }
+                final reviews = snapshot.data!;
+                final average = ReviewService.averageRating(reviews);
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 32),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F3),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.equipmentName ?? 'Equipment',
+                            style: const TextStyle(color: darkText, fontSize: 17,
+                              fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            const Icon(Icons.star_rounded, color: starColor),
+                            const SizedBox(width: 6),
+                            Text(average == null ? 'No ratings yet' : '${average.toStringAsFixed(1)} / 5',
+                              key: const ValueKey('equipment-review-average'),
+                              style: const TextStyle(fontWeight: FontWeight.w800, color: darkText)),
+                            const SizedBox(width: 12),
+                            Text('${reviews.length} ${reviews.length == 1 ? 'review' : 'reviews'}',
+                              style: const TextStyle(color: greyText)),
+                          ]),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_reviewService.signedInUserId != null)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(foregroundColor: primaryRed),
+                        onPressed: () => Navigator.push(context, MaterialPageRoute<void>(
+                          builder: (_) => RateReviewScreen(
+                            equipmentId: widget.equipmentId,
+                            equipmentName: widget.equipmentName,
+                            showEditor: true,
+                            reviewService: _reviewService,
+                            completedRentalService: widget.completedRentalService,
+                          ),
+                        )),
+                        icon: const Icon(Icons.rate_review_outlined),
+                        label: const Text('Write or manage your review'),
+                      ),
+                    if (reviews.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Text('No reviews yet for this equipment.',
+                          textAlign: TextAlign.center, style: TextStyle(color: greyText)),
+                      ),
+                    for (final review in reviews) ...[
+                      const SizedBox(height: 12),
+                      _buildSubmittedReview(review),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmittedReview(ReviewModel review) {
+    final date = (review.updatedAt ?? review.createdAt)?.toLocal();
+    return Container(
+      key: ValueKey('equipment-review-${review.id}'),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FutureBuilder<String>(
+            future: _reviewerNames.putIfAbsent(review.reviewerId,
+              () => _reviewService.getReviewerName(review.reviewerId)),
+            builder: (context, snapshot) => Text(snapshot.data ?? 'Rent Lanka User',
+              style: const TextStyle(color: darkText, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            for (var star = 1; star <= 5; star++)
+              Icon(star <= review.rating ? Icons.star_rounded : Icons.star_border_rounded,
+                color: starColor, size: 18),
+            if (date != null) ...[
+              const SizedBox(width: 10),
+              Text('${date.day}/${date.month}/${date.year}',
+                style: const TextStyle(color: greyText, fontSize: 11)),
+            ],
+          ]),
+          const SizedBox(height: 10),
+          Text(review.comment, style: const TextStyle(color: greyText, height: 1.4)),
+        ],
+      ),
     );
   }
 
@@ -811,7 +969,7 @@ class _RateReviewScreenState extends State<RateReviewScreen> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: rentals.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final item = rentals[index];
