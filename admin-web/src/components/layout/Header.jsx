@@ -13,7 +13,7 @@ export default function Header({ onOpenMenu }) {
   const location = useLocation();
   const notify = useToast();
   const section = location.pathname.split('/')[1];
-  const title = { dashboard: 'Overview', payments: 'Payments', transactions: 'Transactions', refunds: 'Refunds', withdrawals: 'Withdrawals' }[section] || 'Overview';
+  const title = { dashboard: 'Overview', payments: 'Payments', transactions: 'Transactions', refunds: 'Refunds', withdrawals: 'Withdrawals', users: 'Users', equipment: 'Equipment / Listings' }[section] || 'Overview';
   const detail = section === 'payments' && location.pathname.split('/').length > 2;
   const name = textValue(profile?.name) || user?.email?.split('@')[0] || 'Administrator';
   return <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu-button" aria-label="Open navigation" onClick={onOpenMenu}><Menu size={22} /></button>

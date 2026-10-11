@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { adminWithdrawalsEnabled, auth, db } from './firebase.js';
-import { performWithdrawalApproval, WithdrawalError } from './withdrawalPolicy.js';
+import { adminWithdrawalsEnabled, adminWithdrawalRejectionsEnabled, auth, db } from './firebase.js';
+import { performWithdrawalApproval, performWithdrawalRejection, WithdrawalError } from './withdrawalPolicy.js';
 
 export function watchWithdrawals(next, error) {
   return onSnapshot(collection(db, 'withdrawals'), next, error);
@@ -19,5 +19,21 @@ export function approveWithdrawal({ withdrawalId, note }) {
       },
       update(name, id, data) { firebaseTransaction.update(doc(db, name, id), data); },
     }, { withdrawalId, uid, note, timestamp: serverTimestamp });
+  });
+}
+
+export function rejectWithdrawal({ withdrawalId, reason }) {
+  if (!adminWithdrawalRejectionsEnabled) throw new WithdrawalError('Withdrawal rejection requires reviewed security rules. Write actions are disabled.');
+  const uid = auth?.currentUser?.uid;
+  if (!uid) throw new WithdrawalError('Please sign in again before rejecting a withdrawal.');
+  return runTransaction(db, firebaseTransaction => {
+    if (auth.currentUser?.uid !== uid) throw new WithdrawalError('Your session changed. Please sign in again.');
+    return performWithdrawalRejection({
+      async read(name, id) {
+        const snapshot = await firebaseTransaction.get(doc(db, name, id));
+        return snapshot.exists() ? snapshot.data() : null;
+      },
+      update(name, id, data) { firebaseTransaction.update(doc(db, name, id), data); },
+    }, { withdrawalId, uid, reason, timestamp: serverTimestamp });
   });
 }

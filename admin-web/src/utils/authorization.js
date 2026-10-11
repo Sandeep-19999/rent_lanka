@@ -3,6 +3,6 @@ export function isAdminProfile(profile) {
 }
 
 export function safeReturnPath(path) {
-  return typeof path === 'string' && /^\/(dashboard|payments|transactions|refunds|withdrawals)(\/|$|\?)/.test(path)
+  return typeof path === 'string' && /^\/(dashboard|payments|transactions|refunds|withdrawals|users|equipment)(\/|$|\?)/.test(path)
     ? path : '/dashboard';
 }

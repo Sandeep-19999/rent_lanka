@@ -27,7 +27,7 @@ export function Notice({ children, tone = 'neutral' }) {
   return <div className={`notice notice-${tone}`} role={tone === 'error' ? 'alert' : 'status'}><AlertCircle size={17} /><div>{children}</div></div>;
 }
 
-export function PageHeading({ eyebrow = 'PAYMENT ADMINISTRATION', title, description, children }) {
+export function PageHeading({ eyebrow = 'PLATFORM ADMINISTRATION', title, description, children }) {
   return <div className="page-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="page-description">{description}</p></div>
     {children && <div className="page-actions">{children}</div>}</div>;
 }

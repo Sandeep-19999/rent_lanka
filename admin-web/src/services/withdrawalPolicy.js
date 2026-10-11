@@ -9,6 +9,7 @@ const validId = (value) => typeof value === 'string' && !!value.trim() && !value
 export function withdrawalEligibility(withdrawal) {
   if (!withdrawal) return { allowed: false, reason: 'This withdrawal is no longer available.' };
   if (withdrawal.status !== 'pending') return { allowed: false, reason: 'Only pending withdrawals can be approved.' };
+  if (withdrawal.rejectedAt != null || withdrawal.rejectedBy != null) return { allowed: false, reason: 'This request already contains a rejection. Review its history.' };
   if (withdrawal.approvedAt != null || withdrawal.approvedBy != null) {
     return { allowed: false, reason: 'This request already contains an approval. Review its history.' };
   }
@@ -37,6 +38,24 @@ export async function performWithdrawalApproval(transaction, { withdrawalId, uid
   const now = timestamp();
   transaction.update('withdrawals', withdrawalId, {
     status: 'approved', approvedAt: now, approvedBy: uid, approvalNote: note.trim(), updatedAt: now, updatedBy: uid,
+  });
+  return withdrawalId;
+}
+
+/** Rejection releases the request reservation via the existing mobile balance calculation. */
+export async function performWithdrawalRejection(transaction, { withdrawalId, uid, reason, timestamp }) {
+  if (!validId(withdrawalId) || !validId(uid)) throw new WithdrawalError('Invalid withdrawal or administrator reference.');
+  if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) throw new WithdrawalError('A rejection reason of 1?500 characters is required.');
+  const profile = await transaction.read('users', uid);
+  const withdrawal = await transaction.read('withdrawals', withdrawalId);
+  if (!isAdminProfile(profile)) throw new WithdrawalError('Your account is no longer authorized as an administrator.');
+  const eligibility = withdrawalEligibility(withdrawal);
+  if (!eligibility.allowed) throw new WithdrawalError(eligibility.reason);
+  const provider = await transaction.read('users', withdrawal.providerId);
+  if (provider?.role !== 'provider') throw new WithdrawalError('The linked provider account could not be verified.');
+  const now = timestamp();
+  transaction.update('withdrawals', withdrawalId, {
+    status: 'rejected', rejectedAt: now, rejectedBy: uid, rejectionReason: reason.trim(), updatedAt: now, updatedBy: uid,
   });
   return withdrawalId;
 }

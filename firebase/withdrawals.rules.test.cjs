@@ -164,3 +164,31 @@ test('unrelated legacy mobile collections retain the existing test grant', async
   await setDoc(doc(db('player'), 'payments/legacy-flow'), { status: 'pay_on_pickup' });
   await getDocFromServer(doc(db('provider'), 'payments/legacy-flow'));
 });
+
+if (process.env.RENT_LANKA_TEST_REJECTIONS === 'true') {
+  const rejection = (uid = 'admin', reason = 'Duplicate request') => ({ status: 'rejected', rejectedAt: serverTimestamp(), rejectedBy: uid, rejectionReason: reason, updatedAt: serverTimestamp(), updatedBy: uid });
+  test('admin rejection records audit and preserves amount and payee; repeat and cross-decisions denied', async () => {
+    const target = doc(db('admin'),'withdrawals/existing');
+    await updateDoc(target,rejection());
+    const row = (await getDocFromServer(target)).data();
+    assert.equal(row.status,'rejected'); assert.equal(row.rejectedBy,'admin'); assert.equal(row.amount,pending.amount); assert.equal(row.bankAccountId,pending.bankAccountId);
+    assert.equal(row.rejectedAt.toMillis(),row.updatedAt.toMillis());
+    await denied(updateDoc(target,rejection())); await denied(updateDoc(target,approval()));
+  });
+  test('rejection denies unauthorized callers, missing reasons, forged audit and payee edits', async () => {
+    for (const uid of ['provider','player','other',null]) await denied(updateDoc(doc(db(uid),'withdrawals/existing'),rejection(uid || 'admin')));
+    const target = doc(db('admin'),'withdrawals/existing');
+    for (const reason of ['', '   ', 'x'.repeat(501)]) await denied(updateDoc(target,rejection('admin',reason)));
+    await denied(updateDoc(target,{ ...rejection(),rejectedBy:'other' }));
+    await denied(updateDoc(target,{ ...rejection(),amount:1 }));
+    await denied(updateDoc(target,{ ...rejection(),providerId:'other' }));
+    await denied(updateDoc(target,{ ...rejection(),bankAccountId:'other' }));
+    await updateDoc(target,approval()); await denied(updateDoc(target,rejection()));
+  });
+  test('concurrent approval and rejection yield only one final decision', async () => {
+    const target = doc(db('admin'),'withdrawals/existing');
+    const attempt = patch => runTransaction(db('admin'), async tx => { const snap = await tx.get(target); if (snap.data().status !== 'pending') throw new Error('Already decided'); tx.update(target,patch); });
+    const results = await Promise.allSettled([attempt(approval()),attempt(rejection())]);
+    assert.equal(results.filter(r => r.status === 'fulfilled').length,1);
+  });
+}

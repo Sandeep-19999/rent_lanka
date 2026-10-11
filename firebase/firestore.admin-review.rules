@@ -1,0 +1,110 @@
+// LOCAL REVIEW CANDIDATE ONLY. Not deployed. Retains the scoped baseline permissions.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function hasRole(role) {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == role;
+    }
+    function admin() { return hasRole('admin'); }
+    function safeRoleCreate() {
+      return request.resource.data.get('role', '') in ['', 'player', 'provider'];
+    }
+    function safeRoleUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+        || (resource.data.get('role', '') != 'admin'
+          && request.resource.data.get('role', '') in ['player', 'provider']);
+    }
+    match /users/{uid} {
+      // Public provider profiles and authenticated chat/booking lookups use this collection.
+      allow read: if signedIn();
+      allow create: if owner(uid) && safeRoleCreate();
+      allow update: if owner(uid) && safeRoleUpdate();
+      allow delete: if owner(uid) && resource.data.get('role', '') != 'admin';
+      match /{subcollection}/{document=**} {
+        allow read, write: if owner(uid);
+      }
+    }
+    match /bank_accounts/{accountId} {
+      allow read: if admin() || owner(resource.data.providerId);
+      allow create: if hasRole('provider') && owner(request.resource.data.providerId);
+      allow update: if owner(resource.data.providerId)
+        && request.resource.data.providerId == resource.data.providerId;
+      allow delete: if owner(resource.data.providerId);
+    }
+    function validRequest() {
+      let data = request.resource.data;
+      let bank = get(/databases/$(database)/documents/bank_accounts/$(data.bankAccountId)).data;
+      return hasRole('provider') && owner(data.providerId)
+        && data.keys().hasOnly(['providerId', 'bankAccountId', 'bankName',
+          'accountHolderName', 'accountLast4', 'branch', 'amount', 'status', 'requestedAt'])
+        && data.status == 'pending' && data.requestedAt == request.time
+        && data.amount is number && data.amount > 0 && data.amount - data.amount == 0
+        && data.bankAccountId is string && data.bankAccountId.matches('^[^/]+$')
+        && bank.providerId == request.auth.uid
+        && data.bankName == bank.bankName && data.bankName.size() > 0
+        && data.accountHolderName == bank.accountHolderName && data.accountHolderName.size() > 0
+        && data.branch == bank.branch && data.branch.size() > 0
+        && data.accountLast4 is string && data.accountLast4.matches('^[0-9]{4}$')
+        && bank.accountNumber.matches('.*' + data.accountLast4 + '$');
+    }
+    function manualApproval() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return admin() && before.status == 'pending'
+        && before.get('approvedAt', null) == null && before.get('approvedBy', null) == null
+        && before.get('rejectedAt', null) == null && before.get('rejectedBy', null) == null
+        && before.amount is number && before.amount > 0 && before.amount - before.amount == 0
+        && before.providerId is string && before.providerId.matches('^[^/]+$')
+        && get(/databases/$(database)/documents/users/$(before.providerId)).data.get('role', '') == 'provider'
+        && before.bankAccountId is string && before.bankAccountId.matches('^[^/]+$')
+        && before.bankName is string && before.bankName.size() > 0
+        && before.accountHolderName is string && before.accountHolderName.size() > 0
+        && before.branch is string && before.branch.size() > 0
+        && before.accountLast4 is string && before.accountLast4.matches('^[0-9]{4}$')
+        && after.status == 'approved'
+        && after.diff(before).affectedKeys().hasOnly([
+          'status', 'approvedAt', 'approvedBy', 'approvalNote', 'updatedAt', 'updatedBy'])
+        && after.approvedAt == request.time && after.updatedAt == request.time
+        && after.approvedBy == request.auth.uid && after.updatedBy == request.auth.uid
+        && after.approvalNote is string && after.approvalNote.size() <= 500;
+    }
+    function manualRejection() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return admin() && before.status == 'pending'
+        && before.get('approvedAt', null) == null && before.get('approvedBy', null) == null
+        && before.get('rejectedAt', null) == null && before.get('rejectedBy', null) == null
+        && before.amount is number && before.amount > 0 && before.amount - before.amount == 0
+        && before.providerId is string && before.providerId.matches('^[^/]+$')
+        && get(/databases/$(database)/documents/users/$(before.providerId)).data.get('role', '') == 'provider'
+        && before.bankAccountId is string && before.bankAccountId.matches('^[^/]+$')
+        && before.bankName is string && before.bankName.size() > 0
+        && before.accountHolderName is string && before.accountHolderName.size() > 0
+        && before.branch is string && before.branch.size() > 0
+        && before.accountLast4 is string && before.accountLast4.matches('^[0-9]{4}$')
+        && after.status == 'rejected'
+        && after.diff(before).affectedKeys().hasOnly([
+          'status', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'updatedAt', 'updatedBy'])
+        && after.rejectedAt == request.time && after.updatedAt == request.time
+        && after.rejectedBy == request.auth.uid && after.updatedBy == request.auth.uid
+        && after.rejectionReason is string && after.rejectionReason.matches('[\\s\\S]*\\S[\\s\\S]*')
+        && after.rejectionReason.size() > 0 && after.rejectionReason.size() <= 500;
+    }
+    match /withdrawals/{withdrawalId} {
+      allow read: if admin() || owner(resource.data.providerId);
+      allow create: if validRequest();
+      allow update: if manualApproval() || manualRejection();
+      allow delete: if false;
+    }
+    // Preserve the deployed test grant for unrelated mobile collections only.
+    // This is a scoped withdrawal fix, not a complete production security review.
+    // Excluding these names is essential: overlapping allow rules are ORed.
+    match /{collection}/{document=**} {
+      allow read, write: if !(collection in ['users', 'bank_accounts', 'withdrawals'])
+        && request.time < timestamp.date(2027, 3, 1);
+    }
+  }
+}

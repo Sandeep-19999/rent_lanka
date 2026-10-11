@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDownToLine, CheckCheck, ChevronLeft, ChevronRight, Clock3, Download, Landmark, RotateCcw, Search, Wallet } from 'lucide-react';
 import { adminWithdrawalsEnabled } from '../services/firebase.js';
@@ -81,7 +82,7 @@ export function WithdrawalsView({ state, onRetry, approvalEnabled = adminWithdra
         </div>
         {!rows.length ? <EmptyState title="No matching withdrawal requests" description="Requests submitted by providers will appear here. Try clearing any filters." action={<button className="button secondary" onClick={reset}>Clear filters</button>} /> : <>
           <div className="table-scroll"><table className="payment-table withdrawal-table"><caption className="sr-only">Provider withdrawals with masked bank details</caption><thead><tr><th scope="col">Request / provider</th><th scope="col">Bank account</th><th scope="col">Branch</th><th scope="col" className="align-right">Amount</th><th scope="col">Status</th><th scope="col">Requested</th><th scope="col">Approval / action</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id}>
-            <td><strong className="cell-main mono" title={row.id}>{shortId(row.id)}</strong><small className="mono" title={row.providerId}>{shortId(row.providerId)}</small></td>
+            <td><Link className="text-link" to={`/withdrawals/${encodeURIComponent(row.id)}`} title={row.id}>{shortId(row.id)}</Link><small className="mono" title={row.providerId}>{shortId(row.providerId)}</small></td>
             <td><strong className="cell-main">{row.bankName || 'Not recorded'} {row.accountLast4 && `· •••• ${row.accountLast4}`}</strong><small>{row.accountHolderName || 'Holder not recorded'}</small></td><td>{row.branch || 'Not recorded'}</td>
             <td className="align-right"><strong className="amount-cell">{formatCurrency(row.amount)}</strong></td><td><StatusBadge status={row.status} />{row.status === 'approved' && <small>Awaiting payout</small>}</td><td>{formatDate(row.requestedAt)}</td>
             <td>{row.status === 'pending' ? <><button className="button primary approval-button" aria-label={`Approve withdrawal ${row.id}`}
@@ -90,7 +91,7 @@ export function WithdrawalsView({ state, onRetry, approvalEnabled = adminWithdra
               onClick={() => { setSelectedId(row.id); setNote(''); setActionError(''); }}><CheckCheck size={14} />Approve</button>
               {!row.eligibility.allowed && <small className="withdrawal-validation">{row.eligibility.reason}</small>}</>
               : row.status === 'approved' ? <><strong className="cell-main">{formatDateTime(row.approvedAt)}</strong><small title={row.approvedBy}>By {shortId(row.approvedBy)}</small>{row.approvalNote && <small className="withdrawal-validation">{row.approvalNote}</small>}</>
-                : <span className="muted">No approval action</span>}</td>
+                : <><span className="muted">No approval action</span>{row.rejectionReason && <small>{row.rejectionReason}</small>}</>}</td>
           </tr>)}</tbody></table></div><div className="pagination"><span>Showing {(currentPage - 1) * 10 + 1}–{Math.min(currentPage * 10, rows.length)} of {rows.length} requests</span><div className="pagination-buttons"><button className="icon-button" aria-label="Previous withdrawal page" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button><span>{currentPage} / {Math.max(1, Math.ceil(rows.length / 10))}</span><button className="icon-button" aria-label="Next withdrawal page" disabled={currentPage * 10 >= rows.length} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button></div></div>
         </>}
       </section>

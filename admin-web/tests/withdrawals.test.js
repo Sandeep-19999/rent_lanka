@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { performWithdrawalApproval, withdrawalEligibility } from '../src/services/withdrawalPolicy.js';
+import { performWithdrawalApproval, performWithdrawalRejection, withdrawalEligibility } from '../src/services/withdrawalPolicy.js';
 import { normalizeWithdrawal } from '../src/utils/withdrawals.js';
 
 const options = { withdrawalId: 'withdrawal-1', uid: 'admin-1', note: ' Reviewed request. ', timestamp: () => 'SERVER_TIMESTAMP' };
@@ -82,4 +82,36 @@ test('legacy display mapping masks account digits and does not turn numeric stri
   assert.equal(display.accountLast4, '5678');
   assert.equal(display.eligibility.allowed, false);
   assert.equal(withdrawalEligibility(null).allowed, false);
+});
+
+test('rejection updates only status and audit with a required trimmed reason', async () => {
+  const setup = fixture();
+  await performWithdrawalRejection(setup.transaction, { ...options, reason: ' Incorrect request. ' });
+  assert.deepEqual(setup.writes, [{ path: 'withdrawals/withdrawal-1', patch: {
+    status: 'rejected', rejectedAt: 'SERVER_TIMESTAMP', rejectedBy: 'admin-1', rejectionReason: 'Incorrect request.', updatedAt: 'SERVER_TIMESTAMP', updatedBy: 'admin-1',
+  } }]);
+});
+test('rejection denies missing reasons, stale requests, repeat decisions and revoked authorization', async () => {
+  for (const reason of ['', '   ', null, 'x'.repeat(501)]) {
+    const setup = fixture(); await assert.rejects(performWithdrawalRejection(setup.transaction,{ ...options,reason })); assert.equal(setup.writes.length,0);
+  }
+  for (const status of ['approved','rejected','completed','cancelled']) {
+    const setup = fixture({status}); await assert.rejects(performWithdrawalRejection(setup.transaction,{ ...options,reason:'Invalid request' })); assert.equal(setup.writes.length,0);
+  }
+  for (const role of ['player','provider',null]) {
+    const setup = fixture(); setup.documents.set('users/admin-1',{role});
+    await assert.rejects(performWithdrawalRejection(setup.transaction,{ ...options,reason:'Invalid request' }),/authorized/); assert.equal(setup.writes.length,0);
+  }
+  const missing = fixture(); missing.documents.delete('withdrawals/withdrawal-1');
+  await assert.rejects(performWithdrawalRejection(missing.transaction,{ ...options,reason:'Invalid request' }));
+  const prior = fixture({rejectedBy:'admin-2'});
+  await assert.rejects(performWithdrawalApproval(prior.transaction,options),/rejection/);
+  await assert.rejects(performWithdrawalRejection(prior.transaction,{ ...options,reason:'Invalid request' }),/rejection/);
+});
+test('missing provider and invalid bank or amount cannot authorize rejection', async () => {
+  for (const change of [{amount:0},{amount:Infinity},{accountLast4:'12345678'},{providerId:'bad/id'}]) {
+    const setup=fixture(change); await assert.rejects(performWithdrawalRejection(setup.transaction,{ ...options,reason:'Invalid' })); assert.equal(setup.writes.length,0);
+  }
+  const setup=fixture(); setup.documents.delete('users/provider-1');
+  await assert.rejects(performWithdrawalRejection(setup.transaction,{ ...options,reason:'Invalid' }),/provider/); assert.equal(setup.writes.length,0);
 });

@@ -1,4 +1,4 @@
-# Rent Lanka payment administration
+# Rent Lanka platform administration
 
 Separate React + Vite application for the existing `rent-lanka` Firebase project.
 The Flutter application and its financial/lifecycle logic are unchanged.
@@ -9,14 +9,12 @@ Use Node.js 22.12+ (Node 24 LTS is also suitable).
 
 ```sh
 cd admin-web
-cp .env.example .env.local
 npm install
 npm run dev
 ```
 
 Open the Local URL printed by Vite, normally `http://127.0.0.1:5173`.
-An ignored `.env.local` may already be present from local setup. All six Web SDK
-values in the example come from `mobile/lib/firebase_options.dart`; they identify
+Use the existing ignored `.env.local`, or create it with the six public Firebase Web SDK variables listed in `src/services/firebase.js`. Those values come from `mobile/lib/firebase_options.dart`; they identify
 the existing Web App. Never put service-account JSON, Admin SDK keys or private
 credentials in a Vite variable. Vite variables are included in browser bundles.
 
@@ -279,3 +277,18 @@ the rule review described above. No rules or hosting deployment is performed.
 Completed payout dates are not invented. Partial refunds, arbitrary payment
 status editing, payout completion and real money movement are outside the
 implemented workflow. See `VALIDATION.md` for local results.
+
+
+## Platform administration additions
+
+- `/users`: name/email/phone/ID search, role and verification filters, pagination.
+- `/users/:userId`: allowlisted profile fields, owned equipment, provider and player rental requests. Verification is not an account suspension state.
+- `/equipment`: listing/provider/category search, provider/category/status filters, responsive photo cards and pagination.
+- `/equipment/:equipmentId`: actual `imageUrl`, original-photo link, description, price, availability, unavailable dates, provider profile and bookings.
+- `/withdrawals/:withdrawalId`: masked request details, provider profile, approval/rejection confirmations and decision audit history.
+
+The mobile equipment service stores a single Cloudinary HTTPS `imageUrl`, not a photo array. No replacement photos or fabricated records are used. Missing/failed images have explicit fallback states. Users and listings remain read-only: the current schema has no suspension or moderation workflow. Provider `Available`/`Unavailable` controls participate in booking availability and are not moderation states.
+
+Withdrawal approval retains the existing `VITE_ENABLE_ADMIN_WITHDRAWALS` gate. Rejection has a separate `VITE_ENABLE_ADMIN_WITHDRAWAL_REJECTIONS` gate (default false). Do not enable the latter until the new rules have been reviewed, emulator-tested and approved through the owner's release process. Neither action performs a payout. Rejection uses the existing `rejected` status, which the mobile balance calculation excludes from reserved withdrawal totals. Its new audit fields are `rejectedAt`, `rejectedBy`, `rejectionReason`, with existing `updatedAt` and `updatedBy` fields. Transactions reread the admin, request and provider before writing and reject stale/repeated decisions.
+
+See `../firebase/ADMIN_REVIEW.md` for exact security review requirements and emulator commands. No rule or hosting deployment is part of this implementation. Unit/render tests and build do not read or write production data. Browser smoke tests remain optional and need the separate Playwright setup described in their source; they are not part of `npm test`.

@@ -361,3 +361,29 @@ dialog::backdrop { background: rgba(37,39,53,.35); backdrop-filter: blur(5px); -
 @media (max-width: 520px) { .topbar { height: 62px; padding: 0 16px; } .topbar-left, .topbar-right { gap: 8px; } .breadcrumb { gap: 6px; font-size: 10px; } .breadcrumb > span:first-child { display: none; } .breadcrumb > svg:first-of-type { display: none; } .connection-badge, .header-profile-text { display: none; } .main-content { padding: 25px 16px; } .page-heading { flex-wrap: wrap; gap: 15px; margin-bottom: 24px; } .page-actions { width: 100%; } .page-description { font-size: 11px; } .stats-grid { gap: 10px; } .stat-card { padding: 17px 14px; } .stat-top { align-items: flex-start; font-size: 10px; gap: 4px; } .stat-icon { width: 25px; height: 25px; } .stat-icon svg { width: 15px; } .stat-value { font-size: 24px; margin-top: 16px; } .stat-card > p { font-size: 9px; } .overview-meta { flex-direction: column; gap: 5px; } .overview-insights { column-gap: 18px; font-size: 10px; } .overview-insights > div { gap: 5px; } .overview-insights svg { width: 14px; } .panel-header { padding: 18px; } .panel-header h2 { font-size: 14px; } .panel-meta { display: none; } .payment-filters { padding: 17px; } .filter-primary { gap: 10px; } .search-field { flex-basis: 100%; min-width: 0; } .filter-controls { width: 100%; flex-wrap: wrap; } .filter-controls label { min-width: 100px; } .filter-date-label { display: none; } .filter-secondary { gap: 9px; } .date-filter { gap: 6px; } .date-filter input { width: 126px; } .sort-filter { flex: 1; } .sort-filter select { width: 100%; } .reset-filters { font-size: 10px; } .pagination { padding: 14px 17px; flex-wrap: wrap; } .pagination-info { font-size: 9px; } .page-size { margin-left: 5px; } .workspace-footer { flex-direction: column; align-items: flex-start; gap: 5px; margin: 0 16px; } .tabs { gap: 18px; } .tabs button { font-size: 11px; } .status-chart-content { gap: 18px; padding: 0 18px 20px; } .donut-container { min-width: 150px; } .donut-center strong { font-size: 26px; } .payment-hero { padding: 21px 18px; align-items: flex-start; flex-direction: column; gap: 20px; } .payment-hero-main { gap: 14px; } .payment-hero-icon { padding: 14px; } .payment-hero-main strong { font-size: 28px; } .payment-hero-status { text-align: left; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; } .payment-hero-status p { margin: 0; } .detail-card { padding: 20px; } .info-grid { grid-template-columns: 1fr; gap: 19px; } .detail-side { grid-template-columns: 1fr; } .withdrawal-stats { grid-template-columns: 1fr; } .withdrawal-stats .stat-value { font-size: 29px; } .refund-explanation { padding: 17px; } .confirm-dialog { padding: 21px; } .modal-actions { flex-wrap: wrap; } .toast-stack { right: 16px; bottom: 16px; } .login-top-label { display: none; } .login-page { padding: 25px 20px 20px; } .login-card { padding: 27px 24px; } .login-grid { padding: 35px 0; } .login-card h2 { font-size: 25px; } }
 @media (max-width: 360px) { .stats-grid { grid-template-columns: 1fr; } .status-chart-content { flex-direction: column; } .donut-container { width: 100%; } .chart-legend { width: 100%; } .date-filter { width: 100%; } .date-filter input { flex: 1; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* Platform records use the existing Rent Lanka spacing, colors and controls. */
+.platform-filters { display: flex; flex-wrap: wrap; gap: 16px; padding: 22px; border-bottom: 1px solid var(--color-border); }
+.platform-filters label { display: grid; gap: 8px; flex: 1 1 180px; font-size: 13px; }
+.platform-filters input, .platform-filters select { width: 100%; min-width: 0; }
+.platform-panel { padding: 24px; margin-bottom: 22px; }
+.platform-panel h2 { margin-bottom: 16px; font-size: 18px; }
+.platform-details { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 20px; }
+.platform-details dt { font-size: 12px; color: var(--color-text-muted); margin-bottom: 6px; }
+.platform-details dd { margin: 0; overflow-wrap: anywhere; }
+.listing-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; padding: 22px; }
+.listing-card { border: 1px solid var(--color-border); border-radius: 16px; overflow: hidden; min-width: 0; }
+.listing-card-body { padding: 18px; }
+.listing-card-body h2 { font-size: 18px; margin: 12px 0; overflow-wrap: anywhere; }
+.listing-card-body p { font-size: 13px; margin: 12px 0; overflow-wrap: anywhere; }
+.stored-photo, .photo-placeholder { display: flex; position: relative; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4/3; background: rgba(128,128,128,.08); overflow: hidden; }
+.stored-photo img { width: 100%; height: 100%; object-fit: contain; }
+.photo-placeholder, .photo-loading { font-size: 13px; color: var(--color-text-muted); }
+.photo-loading { position: absolute; bottom: 12px; background: var(--color-background-elevated); padding: 6px; }
+.profile-photo { width: 120px; margin-bottom: 24px; }
+.listing-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }
+.listing-description { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 24px; }
+.related-records { list-style: none; padding: 0; }
+.related-records li { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; overflow-wrap: anywhere; }
+@media(max-width:1100px) { .listing-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { .listing-grid, .listing-detail-grid, .platform-details { grid-template-columns: 1fr; } .platform-panel { padding: 18px; } .related-records li { flex-direction: column; } }

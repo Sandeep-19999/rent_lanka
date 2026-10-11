@@ -31,3 +31,6 @@ export const auth = initializedAuth;
 export const db = initializedFirestore;
 export const adminRefundsEnabled = import.meta.env.VITE_ENABLE_ADMIN_REFUNDS === 'true';
 export const adminWithdrawalsEnabled = import.meta.env.VITE_ENABLE_ADMIN_WITHDRAWALS === 'true';
+
+// Separate gate: deployed approval-only rules do not authorize rejection.
+export const adminWithdrawalRejectionsEnabled = import.meta.env.VITE_ENABLE_ADMIN_WITHDRAWAL_REJECTIONS === 'true';

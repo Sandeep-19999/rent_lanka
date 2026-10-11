@@ -31,7 +31,7 @@ export function AdminWorkspace() {
       <Sidebar drawer onNavigate={() => setOpen(false)} />
     </dialog>
     <div className="workspace"><Header onOpenMenu={() => setOpen(true)} /><main id="main-content" className="main-content" tabIndex={-1}><Outlet /></main>
-      <footer className="workspace-footer"><span>RENT LANKA <span className="footer-dot">/</span> Payment administration</span><span>All dates in Asia/Colombo · Amounts in LKR unless stated</span></footer>
+      <footer className="workspace-footer"><span>RENT LANKA <span className="footer-dot">/</span> Platform administration</span><span>All dates in Asia/Colombo · Amounts in LKR unless stated</span></footer>
     </div>
   </div>;
 }
