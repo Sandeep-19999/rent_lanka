@@ -245,7 +245,7 @@ class WithdrawalHistoryScreen extends StatelessWidget {
                                   bottom: 12,
                                 ),
                                 child:
-                                    _WithdrawalCard(
+                                    WithdrawalHistoryCard(
                                   withdrawal:
                                       withdrawal,
                                 ),
@@ -424,12 +424,13 @@ class _SmallSummary
 // WITHDRAWAL CARD
 // =========================================================
 
-class _WithdrawalCard
+class WithdrawalHistoryCard
     extends StatelessWidget {
   final WithdrawalModel
       withdrawal;
 
-  const _WithdrawalCard({
+  const WithdrawalHistoryCard({
+    super.key,
     required this.withdrawal,
   });
 
@@ -548,6 +549,25 @@ class _WithdrawalCard
                         Colors.grey,
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  withdrawal.statusDescription,
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF626879)),
+                ),
+                if (withdrawal.approvedAt != null) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    'Approved: ${_formatDate(withdrawal.approvedAt)}',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+                if (withdrawal.approvalNote.trim().isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    withdrawal.approvalNote,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
               ],
             ),
           ),

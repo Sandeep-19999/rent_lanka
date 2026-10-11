@@ -30,3 +30,4 @@ export const configurationError = setupError;
 export const auth = initializedAuth;
 export const db = initializedFirestore;
 export const adminRefundsEnabled = import.meta.env.VITE_ENABLE_ADMIN_REFUNDS === 'true';
+export const adminWithdrawalsEnabled = import.meta.env.VITE_ENABLE_ADMIN_WITHDRAWALS === 'true';

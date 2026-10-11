@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { LoadingSpinner } from './Feedback.jsx';
 
-export default function ConfirmModal({ open, title, description, children, busy, onCancel, onConfirm, confirmLabel = 'Confirm', disabled = false }) {
+export default function ConfirmModal({ open, title, description, children, busy, onCancel, onConfirm, confirmLabel = 'Confirm', busyLabel = 'Recording refund…', disabled = false }) {
   const dialog = useRef(null);
   const heading = useId();
   const content = useId();
@@ -20,6 +20,6 @@ export default function ConfirmModal({ open, title, description, children, busy,
     <p id={content} className="muted">{description}</p>
     {children}
     <div className="modal-actions"><button autoFocus className="button secondary" onClick={onCancel} disabled={busy}>Cancel</button>
-      <button className="button primary" onClick={onConfirm} disabled={busy || disabled}>{busy ? <LoadingSpinner label="Recording refund…" /> : confirmLabel}</button></div>
+      <button className="button primary" onClick={onConfirm} disabled={busy || disabled}>{busy ? <LoadingSpinner label={busyLabel} /> : confirmLabel}</button></div>
   </dialog>;
 }

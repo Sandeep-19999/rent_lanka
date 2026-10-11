@@ -15,5 +15,5 @@ export function errorMessage(error, fallback = 'Something went wrong. Please try
     'invalid-api-key': 'The Firebase configuration is invalid. Review the local environment file.',
     'unauthenticated': 'Your session has expired. Please sign in again.',
   };
-  return messages[code] || (error?.name === 'RefundError' ? error.message : fallback);
+  return messages[code] || (['RefundError', 'WithdrawalError'].includes(error?.name) ? error.message : fallback);
 }

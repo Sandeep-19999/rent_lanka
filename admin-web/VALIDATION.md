@@ -2,6 +2,63 @@
 
 Validated on 11 October 2026, on `feature/admin-payment-dashboard`.
 
+## Manual approval and mobile follow-up
+
+- Mobile submits only `pending`; approval/audit fields are absent at creation.
+  Submission and history explain awaiting admin approval versus awaiting payout.
+  Approval date/note are displayed, and non-finite amounts are rejected.
+- `flutter test --no-pub`: **129 passed**, including 5 new withdrawal request,
+  legacy mapping and narrow-phone history tests. Analysis of the six changed
+  withdrawal files/test reports **no issues**.
+- `npm test`: **21 passed**; `npm run build`: **passed**.
+- Browser smoke: **passed**, no errors/warnings. Opening the enabled withdrawal
+  page, opening its modal, and cancelling leave the fixture request pending.
+  Only explicit confirmation approves. Screenshots are in
+  `/private/tmp/rent-lanka-manual-approval-results/`.
+- `firebase/withdrawals.rules.test.cjs`: **8 passed** against the actual
+  `firestore.withdrawals.rules` in the local demo Firestore emulator. Covered
+  pending creation, provider/anonymous denial, server audit, immutable payee/
+  amount, concurrency, private queries and mobile role/profile/bank operations.
+- With explicit owner approval, the scoped ruleset was deployed to `rent-lanka`
+  on 11 October 2026 (release updated at 10:12:39 UTC). The released source was
+  read back and matches the tested file. The previous ruleset was backed up in
+  `/private/tmp/rent-lanka-admin-setup/pre-withdrawal-deployment-rules.json`.
+  Local manual approval is enabled; the example flag stays false. No live
+  withdrawal was changed. Unrelated collections retain their existing test
+  grant; refund writes remain disabled.
+- Read-only live Chrome verification passed: actual admin sign-in and withdrawal
+  listener, five enabled eligible approval buttons on the displayed page,
+  opening/cancelling confirmation leaves the request pending, and anonymous
+  withdrawal reads return 403. No browser errors or financial document writes.
+  Screenshot: `/private/tmp/rent-lanka-manual-approval-results/withdrawals-live-read-only.png`.
+
+The sections below record earlier validation stages.
+
+## White/red theme and withdrawal approval follow-up
+
+- The application now uses a light white/red theme across login, navigation,
+  financial cards, charts, tooltips, tables, badges, dialogs and loading states.
+  Screenshots of the login, dashboard and withdrawals were visually inspected.
+- `npm test`: **21 passed, 0 failed**, including pending-to-approved withdrawal
+  policy, immutable amount/bank/requestedAt, duplicate/stale requests, revoked
+  administrator roles, missing provider, malformed legacy data and audit fields.
+- `npm run build`: **passed** with no warnings.
+- The browser checks passed with **no errors or warnings**. In addition to the
+  existing ledger checks, isolated withdrawal fixtures exercise the disabled
+  write gate, confirmation/cancellation, approval success and audit display,
+  approval failure and responsive layouts. No live withdrawal was changed.
+- Current screenshots are in `/private/tmp/rent-lanka-light-browser-results/`.
+- Deployed rules were read through existing Firebase CLI credentials. They have
+  a catch-all test rule permitting unauthenticated reads/writes until 1 March
+  2027. No deployed rule was changed. The recommendation adds a restricted
+  pending-to-approved grant, but the catch-all must be removed in a reviewed,
+  mobile-compatible ruleset before that restriction can be effective.
+- `VITE_ENABLE_ADMIN_WITHDRAWALS=false` and `VITE_ENABLE_ADMIN_REFUNDS=false`
+  remain the default. These are UI/service gates, not security boundaries.
+  Emulator verification and rule deployment were still required at this stage before enabling
+  financial writes. The new approval records a review decision; it does not
+  complete a bank payout, debit the provider balance again or edit payments.
+
 ## Administrator setup follow-up
 
 After the user requested a default administrator, a dedicated Firebase

@@ -32,7 +32,8 @@ Production output is `dist/`. Hosting must rewrite non-asset routes to
 ## Provision an administrator
 
 A development administrator was provisioned in `rent-lanka` on 11 October 2026:
-`admin@rentlanka.example`. Its generated password and UID are saved only in the
+`admin@rentlanka.example`. The login form also accepts the username `admin-sithuli`.
+Its current password and UID are saved only in the
 Git-ignored `.admin-credentials.local` file, outside the frontend configuration.
 This `.example` address is a login identifier and does not receive email. Use an
 email address you control when provisioning an account that needs email recovery.
@@ -67,12 +68,18 @@ Use a dedicated administrator: the mobile login routes only player/provider role
 | `/payments/:paymentId` | Payment, booking, equipment, account and audit information |
 | `/transactions` | Full charge/refund history with filtered CSV export |
 | `/refunds` | Recorded refunds and terminal rentals awaiting refund review |
-| `/withdrawals` | Read-only provider requests with masked bank information |
+| `/withdrawals` | Provider requests, masked bank information, approval review and audit |
 
 Unknown routes redirect through the protected dashboard. Dates and date filters
 use **Asia/Colombo**. Filters are retained in payment-page URLs. CSV exports include
 all currently filtered rows, rather than only the visible page, and escape
 spreadsheet formula prefixes. No sample records or fabricated statistics are used.
+
+The interface uses a light white/red theme matching Rent Lanka: white cards,
+soft grey backgrounds, dark readable text and `#ED1235` primary actions.
+Green shows paid/approved records, amber shows awaiting payment/review, and purple
+distinguishes refunds. Shared CSS tokens cover navigation, inputs, charts,
+tooltips, tables, dialogs and loading states.
 
 ## Existing schema and reads
 
@@ -163,17 +170,58 @@ The preflight legacy check is an additional safeguard, not that security guarant
 Then set the flag to `true` only after the merged rules are verified/deployed,
 and restart Vite or rebuild. Never enable it simply to bypass permission errors.
 
+## Provider withdrawal approval
+
+The mobile submission creates `pending` without approval fields. Its success
+message and history explain that it is awaiting admin approval. History shows
+approved requests as awaiting bank payout, with approval date/note. The balance
+calculation subtracts every withdrawal except `rejected` or `cancelled`.
+Consequently, changing **pending → approved** keeps the existing reservation
+without another debit or any rewrite of provider earnings.
+
+On `/withdrawals`, a valid pending request has an **Approve** button. The
+confirmation shows the amount, provider and masked bank snapshot, with an optional
+note. The transaction rechecks the signed-in admin role, pending status, positive
+numeric amount, complete bank snapshot and linked provider role before updating
+only `status: "approved"`, `approvedAt`, `approvedBy`, `approvalNote`, `updatedAt`
+and `updatedBy`. Dates use server timestamps. Already approved, completed,
+rejected/cancelled and malformed requests cannot be approved again. Concurrent
+approvals contend on the same withdrawal document. Approval dates/admin/notes
+appear in the table and filtered CSV.
+
+**Approval does not transfer money or mark a payout completed.** It does not
+change the amount, bank information, requested date, payments, bookings, slots,
+notifications or balances. It does not add a manual approval stage to card/online
+payments, which the mobile flow already records as `paid`.
+
+`VITE_ENABLE_ADMIN_WITHDRAWALS=false` disables both the button and write service
+until secure rules are verified/deployed. The complete scoped
+[withdrawal ruleset and deployment instructions](../firebase/README.md) protect
+withdrawal creation/approval, bank ownership and admin role assignment. Local
+emulator tests cover the actual rules. This flag is a workflow gate, not a
+security boundary.
+
+The live Firestore rules were inspected read-only on 11 October 2026. They contain
+a catch-all test grant allowing **any client to read/write until 1 March 2027**.
+The scoped ruleset excludes the protected collections from that grant; unrelated
+mobile collections retain the existing grant. With explicit owner approval, it
+was deployed on 11 October 2026 and its released source verified against the
+tested file. The current local environment enables manual withdrawal approval;
+the example flag stays false for installations that have not verified their
+rules. Refund security requires its separate review; its flag remains disabled.
+
 ## Verification checklist
 
 `npm test` exercises malformed legacy values, Colombo date boundaries, financial
 totals, search/filter/sort, CSV formula safety, role checks, refund invariants,
-duplicate rejection and completed-rental protection. It uses isolated fixtures,
+duplicate rejection, withdrawal approval/audit invariants, and completed-rental protection. It uses isolated fixtures,
 never production Firestore writes. These tests do not verify deployed rules.
 
 `tests/browser-smoke.mjs` checks the actual signed-out login and route redirects,
 intercepts invalid login credentials locally, and uses isolated context fixtures
-for administrator/player/provider UI, totals, charts, filters, CSV, pagination and
-responsive navigation. The fixture HTML is a development-only entry, excluded
+for administrator/player/provider UI, totals, charts, filters, CSV, pagination,
+withdrawal approval gating/confirmation/success/failure and responsive navigation.
+The fixture HTML is a development-only entry, excluded
 from `dist/`; the production application always reads Firestore.
 
 For the optional browser check, install Playwright in a separate temporary folder
@@ -216,14 +264,18 @@ With authorized test accounts and the project's verified rules:
    one full refund, unchanged charge, updated booking payment status, unchanged
    lifecycle/reservations/earnings, and rejection of repeated/concurrent submissions.
 10. Confirm completed/active rentals and mismatched records cannot be refunded.
-11. Check withdrawals use masked bank data; then logout and test a protected URL.
+11. In emulator/test data with reviewed rules, approve a pending withdrawal.
+    Check its audit, unchanged amount/bank/requestedAt, unchanged provider balance,
+    no completed status, repeated/concurrent rejection and non-admin denial.
+    Check masked bank data, then logout and test a protected URL.
 12. Check desktop, tablet and 390px mobile navigation, charts and horizontal tables.
 
 ## Limits
 
-Deployed rules, existing administrator accounts, real login, live collection reads
-and live refund writes cannot be verified without project access/test credentials.
-No Firebase or hosting deployment is performed. Refund writes require the rule
-review described above. Withdrawals are read-only; completed dates are not invented.
-Partial refunds, arbitrary status editing, payout processing and real money movement
-are outside the existing supported lifecycle. See `VALIDATION.md` for local results.
+The default admin login/profile and deployed rule contents have been checked.
+Live financial mutations and emulator validation of the recommended rules have
+not been performed. Refund and withdrawal approval writes remain disabled until
+the rule review described above. No rules or hosting deployment is performed.
+Completed payout dates are not invented. Partial refunds, arbitrary payment
+status editing, payout completion and real money movement are outside the
+implemented workflow. See `VALIDATION.md` for local results.

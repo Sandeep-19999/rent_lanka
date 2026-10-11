@@ -89,6 +89,31 @@ function updatesBookingForAdminRefund(bookingId) {
       resource.data, request.resource.data);
 }
 
+// Only pending -> approved. Approval is not bank payout completion.
+function approvesValidWithdrawal() {
+  let before = resource.data;
+  let after = request.resource.data;
+  return isRentLankaAdmin()
+    && before.status == 'pending'
+    && before.get('approvedAt', null) == null
+    && before.get('approvedBy', null) == null
+    && before.amount is number && before.amount > 0
+    && before.providerId is string && before.providerId.matches('^[^/]+$')
+    && get(/databases/$(database)/documents/users/$(before.providerId)).data.get('role', '') == 'provider'
+    && before.bankAccountId is string && before.bankAccountId.matches('^[^/]+$')
+    && before.bankName is string && before.bankName.size() > 0
+    && before.accountHolderName is string && before.accountHolderName.size() > 0
+    && before.branch is string && before.branch.size() > 0
+    && before.accountLast4 is string && before.accountLast4.matches('^[0-9]{4}$')
+    && after.status == 'approved'
+    && after.diff(before).affectedKeys().hasOnly([
+      'status', 'approvedAt', 'approvedBy', 'approvalNote', 'updatedAt', 'updatedBy'
+    ])
+    && after.approvedAt == request.time && after.updatedAt == request.time
+    && after.approvedBy == request.auth.uid && after.updatedBy == request.auth.uid
+    && after.approvalNote is string && after.approvalNote.size() <= 500;
+}
+
 // Add these admin grants to the corresponding EXISTING collection matches.
 // Preserve mobile grants only after validating their ownership/field constraints.
 match /users/{uid} {
@@ -109,10 +134,18 @@ match /equipment/{equipmentId} {
 }
 match /withdrawals/{withdrawalId} {
   allow read: if isRentLankaAdmin();
+  allow update: if approvesValidWithdrawal();
 }
 
 // No admin grants for bank account numbers, equipment/slot lifecycle writes,
-// withdrawals processing, financial deletes, or notifications are needed here.
+// payout completion, financial deletes, or notifications are needed here.
+// Before enabling VITE_ENABLE_ADMIN_WITHDRAWALS, test pending -> approved,
+// repeated/concurrent approval, non-admin access, self-promotion, invalid provider
+// or bank details, and immutable amount/provider/bank/requestedAt fields.
+// The live rules inspected on 11 October 2026 contain a catch-all test grant
+// allowing ANY reader/writer until 1 March 2027. That overlapping grant must be
+// removed through a reviewed mobile-compatible ruleset; adding this snippet
+// alongside it does NOT restrict access. This file has NOT been deployed.
 // Before enabling VITE_ENABLE_ADMIN_REFUNDS:
 // 1. Inspect deployed rules and overlapping broad grants.
 // 2. Confirm existing non-admin refund creates follow bookingId + '_refund'.

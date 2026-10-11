@@ -1,18 +1,19 @@
 import '../widgets/exchange_offer_details.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/chat_service.dart';
 import '../services/exchange_service.dart';
 import 'chat_screen.dart';
+import 'exchange_request_screen.dart';
+import '../models/exchange_edit_policy.dart';
 
 class ExchangeStatusScreen extends StatefulWidget {
   final String exchangeRequestId;
 
-  const ExchangeStatusScreen({
-    super.key,
-    required this.exchangeRequestId,
-  });
+  const ExchangeStatusScreen({super.key, required this.exchangeRequestId});
 
   @override
   State<ExchangeStatusScreen> createState() => _ExchangeStatusScreenState();
@@ -42,9 +43,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     });
 
     try {
-      final providerName = await _chatService.getUserDisplayName(
-        providerId,
-      );
+      final providerName = await _chatService.getUserDisplayName(providerId);
 
       final chatId = await _chatService.ensureChat(
         otherUserId: providerId,
@@ -66,15 +65,11 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     } on FirebaseException catch (error) {
       if (!mounted) return;
 
-      _showMessage(
-        error.message ?? 'Unable to open chat.',
-      );
+      _showMessage(error.message ?? 'Unable to open chat.');
     } catch (error) {
       if (!mounted) return;
 
-      _showMessage(
-        error.toString().replaceFirst('Exception: ', ''),
-      );
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -85,9 +80,8 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -123,8 +117,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
-            child:
-                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: _exchangeService.watchExchangeRequest(
                 widget.exchangeRequestId,
               ),
@@ -133,13 +126,10 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                   return _buildErrorState();
                 }
 
-                if (snapshot.connectionState ==
-                        ConnectionState.waiting &&
+                if (snapshot.connectionState == ConnectionState.waiting &&
                     !snapshot.hasData) {
                   return const Center(
-                    child: CircularProgressIndicator(
-                      color: primaryRed,
-                    ),
+                    child: CircularProgressIndicator(color: primaryRed),
                   );
                 }
 
@@ -155,29 +145,26 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
 
                 final String requestedEquipment =
                     data['requestedEquipmentName']?.toString() ??
-                        'Requested equipment';
+                    'Requested equipment';
 
                 final String offeredEquipment =
                     data['offeredEquipmentName']?.toString() ??
-                        'Offered equipment';
+                    'Offered equipment';
 
                 final String providerId =
                     data['requestedProviderId']?.toString() ?? '';
 
-                final String message =
-                    data['message']?.toString().trim() ?? '';
+                final String message = data['message']?.toString().trim() ?? '';
 
                 final String status =
-                    data['status']?.toString().toLowerCase() ??
-                        'pending';
+                    data['status']?.toString().toLowerCase() ?? 'pending';
 
                 final Timestamp? createdTimestamp =
                     data['createdAt'] is Timestamp
-                        ? data['createdAt'] as Timestamp
-                        : null;
+                    ? data['createdAt'] as Timestamp
+                    : null;
 
-                final DateTime? createdAt =
-                    createdTimestamp?.toDate();
+                final DateTime? createdAt = createdTimestamp?.toDate();
 
                 final bool canMessage =
                     status != 'cancelled' &&
@@ -185,15 +172,9 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                     providerId.isNotEmpty;
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    18,
-                    20,
-                    18,
-                    32,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 32),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildStatusBanner(status),
 
@@ -211,8 +192,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                       const SizedBox(height: 12),
 
                       _buildExchangeSummary(
-                        requestedEquipment:
-                            requestedEquipment,
+                        requestedEquipment: requestedEquipment,
                         offeredEquipment: offeredEquipment,
                       ),
                       ExchangeOfferDetails(data: data),
@@ -245,10 +225,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
 
                       const SizedBox(height: 12),
 
-                      _buildDetailsCard(
-                        createdAt: createdAt,
-                        message: message,
-                      ),
+                      _buildDetailsCard(createdAt: createdAt, message: message),
 
                       const SizedBox(height: 26),
 
@@ -256,30 +233,24 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton.icon(
-                          onPressed:
-                              _isOpeningChat || !canMessage
-                                  ? null
-                                  : () =>
-                                      _messageProvider(providerId),
+                          onPressed: _isOpeningChat || !canMessage
+                              ? null
+                              : () => _messageProvider(providerId),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryRed,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor:
-                                const Color(0xFFE4E4E4),
-                            disabledForegroundColor:
-                                const Color(0xFF999999),
+                            disabledBackgroundColor: const Color(0xFFE4E4E4),
+                            disabledForegroundColor: const Color(0xFF999999),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
                           icon: _isOpeningChat
                               ? const SizedBox(
                                   width: 19,
                                   height: 19,
-                                  child:
-                                      CircularProgressIndicator(
+                                  child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
@@ -291,10 +262,9 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                           label: Text(
                             _isOpeningChat
                                 ? 'Opening Chat...'
-                                : status == 'rejected' ||
-                                        status == 'cancelled'
-                                    ? 'Messaging Unavailable'
-                                    : 'Message Provider',
+                                : status == 'rejected' || status == 'cancelled'
+                                ? 'Messaging Unavailable'
+                                : 'Message Provider',
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
@@ -303,31 +273,56 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                         ),
                       ),
 
-                      if (status == 'pending') ...[
+                      if (ExchangeEditPolicy.canEdit(
+                        data,
+                        FirebaseAuth.instance.currentUser?.uid ?? '',
+                      )) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit Request'),
+                            onPressed: _isCancelling
+                                ? null
+                                : () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ExchangeRequestScreen(
+                                        exchangeRequestId:
+                                            widget.exchangeRequestId,
+                                        initialData: data,
+                                        requestedEquipmentId:
+                                            data['requestedEquipmentId']
+                                                ?.toString() ??
+                                            '',
+                                        requestedEquipmentName:
+                                            requestedEquipment,
+                                        requestedProviderId: providerId,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
                           height: 52,
                           child: OutlinedButton(
-                            onPressed: _isCancelling
-                                ? null
-                                : _showCancelDialog,
+                            onPressed: _isCancelling ? null : _showCancelDialog,
                             style: OutlinedButton.styleFrom(
                               foregroundColor: darkText,
-                              side: const BorderSide(
-                                color: borderColor,
-                              ),
+                              side: const BorderSide(color: borderColor),
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(14),
                               ),
                             ),
                             child: _isCancelling
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child:
-                                        CircularProgressIndicator(
+                                    child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: primaryRed,
                                     ),
@@ -336,8 +331,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                                     'Cancel Request',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight:
-                                          FontWeight.w700,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                           ),
@@ -376,17 +370,12 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
               color: Colors.white.withValues(alpha: 0.85),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 26,
-            ),
+            child: Icon(icon, color: color, size: 26),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _statusTitle(status),
@@ -399,11 +388,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                 const SizedBox(height: 4),
                 Text(
                   _statusDescription(status),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
+                  style: TextStyle(color: color, fontSize: 13, height: 1.4),
                 ),
               ],
             ),
@@ -438,21 +423,16 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
             padding: EdgeInsets.symmetric(vertical: 14),
             child: Row(
               children: [
-                Expanded(
-                  child: Divider(color: borderColor),
-                ),
+                Expanded(child: Divider(color: borderColor)),
                 Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 12),
                   child: Icon(
                     Icons.swap_vert_rounded,
                     color: primaryRed,
                     size: 25,
                   ),
                 ),
-                Expanded(
-                  child: Divider(color: borderColor),
-                ),
+                Expanded(child: Divider(color: borderColor)),
               ],
             ),
           ),
@@ -485,24 +465,16 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
             color: iconBackground,
             borderRadius: BorderRadius.circular(13),
           ),
-          child: Icon(
-            icon,
-            color: iconColor,
-            size: 24,
-          ),
+          child: Icon(icon, color: iconColor, size: 24),
         ),
         const SizedBox(width: 13),
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: greyText,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: greyText, fontSize: 12),
               ),
               const SizedBox(height: 3),
               Text(
@@ -523,13 +495,10 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
   Widget _buildProgress(String status) {
     final bool submitted = true;
 
-    final bool reviewed =
-        status != 'pending' && status != 'cancelled';
+    final bool reviewed = status != 'pending' && status != 'cancelled';
 
     final bool decided =
-        status == 'accepted' ||
-        status == 'rejected' ||
-        status == 'completed';
+        status == 'accepted' || status == 'rejected' || status == 'completed';
 
     return Container(
       width: double.infinity,
@@ -543,8 +512,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
         children: [
           _buildProgressItem(
             title: 'Request submitted',
-            subtitle:
-                'Your exchange offer was sent.',
+            subtitle: 'Your exchange offer was sent.',
             isComplete: submitted,
             showLine: true,
           ),
@@ -575,8 +543,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
   }) {
     return IntrinsicHeight(
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 28,
@@ -586,32 +553,22 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
                   width: 22,
                   height: 22,
                   decoration: BoxDecoration(
-                    color: isComplete
-                        ? primaryRed
-                        : const Color(0xFFE8E8E8),
+                    color: isComplete ? primaryRed : const Color(0xFFE8E8E8),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isComplete
-                        ? Icons.check_rounded
-                        : Icons.circle,
+                    isComplete ? Icons.check_rounded : Icons.circle,
                     size: isComplete ? 15 : 7,
-                    color: isComplete
-                        ? Colors.white
-                        : const Color(0xFFAAAAAA),
+                    color: isComplete ? Colors.white : const Color(0xFFAAAAAA),
                   ),
                 ),
                 if (showLine)
                   Expanded(
                     child: Container(
                       width: 2,
-                      margin:
-                          const EdgeInsets.symmetric(
-                        vertical: 4,
-                      ),
+                      margin: const EdgeInsets.symmetric(vertical: 4),
                       color: isComplete
-                          ? primaryRed
-                              .withValues(alpha: 0.25)
+                          ? primaryRed.withValues(alpha: 0.25)
                           : const Color(0xFFE8E8E8),
                     ),
                   ),
@@ -621,18 +578,14 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Padding(
-              padding:
-                  const EdgeInsets.only(bottom: 22),
+              padding: const EdgeInsets.only(bottom: 22),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: TextStyle(
-                      color: isComplete
-                          ? darkText
-                          : const Color(0xFF999999),
+                      color: isComplete ? darkText : const Color(0xFF999999),
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -668,8 +621,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
         border: Border.all(color: borderColor),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildDetailRow(
             Icons.calendar_today_outlined,
@@ -678,19 +630,12 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
           ),
           if (message.isNotEmpty) ...[
             const Padding(
-              padding:
-                  EdgeInsets.symmetric(vertical: 14),
-              child: Divider(
-                height: 1,
-                color: borderColor,
-              ),
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Divider(height: 1, color: borderColor),
             ),
             const Text(
               'Your message',
-              style: TextStyle(
-                color: greyText,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: greyText, fontSize: 12),
             ),
             const SizedBox(height: 6),
             Text(
@@ -707,26 +652,15 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     );
   }
 
-  Widget _buildDetailRow(
-    IconData icon,
-    String label,
-    String value,
-  ) {
+  Widget _buildDetailRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(
-          icon,
-          color: primaryRed,
-          size: 20,
-        ),
+        Icon(icon, color: primaryRed, size: 20),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: greyText,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: greyText, fontSize: 13),
           ),
         ),
         Text(
@@ -742,8 +676,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
   }
 
   Future<void> _showCancelDialog() async {
-    final bool? shouldCancel =
-        await showDialog<bool>(
+    final bool? shouldCancel = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -752,33 +685,21 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
           ),
           title: const Text(
             'Cancel exchange request?',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w800),
           ),
           content: const Text(
             'The provider will no longer be able to accept this exchange request.',
           ),
           actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(
-                dialogContext,
-                false,
-              ),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text(
                 'Keep Request',
-                style: TextStyle(
-                  color: darkText,
-                ),
+                style: TextStyle(color: darkText),
               ),
             ),
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(
-                dialogContext,
-                true,
-              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text(
                 'Cancel Request',
                 style: TextStyle(
@@ -799,34 +720,21 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
     });
 
     try {
-      await _exchangeService.cancelExchangeRequest(
-        widget.exchangeRequestId,
-      );
+      await _exchangeService.cancelExchangeRequest(widget.exchangeRequestId);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Exchange request cancelled.'),
-        ),
+        const SnackBar(content: Text('Exchange request cancelled.')),
       );
     } on FirebaseException catch (error) {
       if (!mounted) return;
 
-      _showMessage(
-        error.message ??
-            'Unable to cancel request.',
-      );
+      _showMessage(error.message ?? 'Unable to cancel request.');
     } catch (error) {
       if (!mounted) return;
 
-      _showMessage(
-        error.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-      );
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -860,8 +768,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
             ),
             const SizedBox(height: 18),
             OutlinedButton(
-              onPressed: () =>
-                  Navigator.maybePop(context),
+              onPressed: () => Navigator.maybePop(context),
               child: const Text('Go Back'),
             ),
           ],
@@ -894,8 +801,7 @@ class _ExchangeStatusScreenState extends State<ExchangeStatusScreen> {
             ),
             const SizedBox(height: 18),
             OutlinedButton(
-              onPressed: () =>
-                  Navigator.maybePop(context),
+              onPressed: () => Navigator.maybePop(context),
               child: const Text('Go Back'),
             ),
           ],

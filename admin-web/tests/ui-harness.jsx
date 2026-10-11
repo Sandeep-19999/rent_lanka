@@ -1,6 +1,7 @@
 // Isolated UI fixtures. This entry is never imported by the production app.
 // Providers below bypass Firebase listeners; these tests never write live data.
 import { createRoot } from 'react-dom/client';
+import { useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthContext } from '../src/context/AuthContext.jsx';
 import { PaymentContext } from '../src/context/PaymentContext.jsx';
@@ -12,6 +13,9 @@ import DashboardPage from '../src/pages/DashboardPage.jsx';
 import PaymentsPage from '../src/pages/PaymentsPage.jsx';
 import TransactionsPage from '../src/pages/TransactionsPage.jsx';
 import RefundsPage from '../src/pages/RefundsPage.jsx';
+import { WithdrawalsView } from '../src/pages/WithdrawalsPage.jsx';
+import { normalizeWithdrawal } from '../src/utils/withdrawals.js';
+import { WithdrawalError } from '../src/services/withdrawalPolicy.js';
 import { normalizePayment } from '../src/utils/payments.js';
 import { isAdminProfile } from '../src/utils/authorization.js';
 import '../src/styles/variables.css';
@@ -45,11 +49,27 @@ const auth = { user: { uid: 'test-admin', email: 'qa@example.invalid' }, profile
   loading: false, isAdmin: isAdminProfile(profile), retryAuthorization() {},
   error: isAdminProfile(profile) ? '' : 'Access denied. This account is not authorized for the Rent Lanka admin portal.' };
 
+function WithdrawalFixture() {
+  const [rows, setRows] = useState(() => ['pending', 'approved', 'completed'].map((status, index) => normalizeWithdrawal(`test-withdrawal-${index + 1}`, {
+    providerId: 'test-provider', bankAccountId: 'test-bank', bankName: 'Test Bank',
+    accountHolderName: 'Test Provider', accountLast4: '1234', branch: 'Test Branch', amount: 12000,
+    status, requestedAt: new Date(), ...(status === 'approved' ? { approvedAt: new Date(), approvedBy: 'test-admin' } : {}),
+  })));
+  async function approve({ withdrawalId, note }) {
+    if (params.get('approval_failure') === '1') throw new WithdrawalError('Test approval was denied. No changes were made.');
+    setRows((current) => current.map((row) => row.id === withdrawalId ? { ...row, status: 'approved', approvedAt: new Date(),
+      approvedBy: 'test-admin', approvalNote: note.trim(), eligibility: { allowed: false, reason: 'Only pending withdrawals can be approved.' } } : row));
+  }
+  return <WithdrawalsView state={{ rows, loading: false, error: '' }} onRetry={() => {}}
+    approvalEnabled={params.get('approval') === 'enabled'} onApprove={approve} />;
+}
+
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={[params.get('page') || '/dashboard']}><ToastProvider><AuthContext.Provider value={auth}><PaymentContext.Provider value={state}>
     <Routes><Route path="/login" element={<LoginPage />} /><Route element={<ProtectedRoute />}><Route element={<AdminWorkspace />}>
       <Route path="/dashboard" element={<DashboardPage />} /><Route path="/payments" element={<PaymentsPage />} />
       <Route path="/transactions" element={<TransactionsPage />} /><Route path="/refunds" element={<RefundsPage />} />
+      <Route path="/withdrawals" element={<WithdrawalFixture />} />
     </Route></Route></Routes>
   </PaymentContext.Provider></AuthContext.Provider></ToastProvider></MemoryRouter>,
 );

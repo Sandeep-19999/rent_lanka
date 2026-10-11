@@ -123,6 +123,35 @@ try {
   await page.getByRole('button', { name: /Awaiting review/ }).click();
   await page.waitForFunction((count) => document.querySelectorAll('tbody tr').length === count, 1, { timeout: 15000 });
 
+  console.log('Checking withdrawal approval gate and confirmation');
+  await page.goto(harness('/withdrawals'));
+  await page.getByRole('heading', { name: 'Withdrawals', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }).isDisabled(), true);
+  await page.goto(`${harness('/withdrawals')}&approval=enabled`);
+  const pendingRequest = page.locator('tbody tr').filter({ has: page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }) });
+  assert.equal(await pendingRequest.locator('.status-badge').innerText(), 'Pending');
+  await page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }).click();
+  await page.getByRole('heading', { name: 'Approve provider withdrawal?' }).waitFor();
+  assert.equal(await pendingRequest.locator('.status-badge').innerText(), 'Pending');
+  await page.screenshot({ path: path.join(output, 'approval-fixture-desktop.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal(await page.locator('.confirm-dialog').count(), 0);
+  assert.equal(await pendingRequest.locator('.status-badge').innerText(), 'Pending');
+  await page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }).click();
+  await page.getByLabel('Approval note (optional)').fill('Reviewed fixture request.');
+  await page.getByRole('button', { name: 'Approve withdrawal', exact: true }).click();
+  await page.getByText('Withdrawal approved. Bank payout is still outstanding.').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }).count(), 0);
+  assert.equal(await page.locator('tbody tr').filter({ hasText: 'Awaiting payout' }).count(), 2);
+  assert.ok(await page.getByText('Reviewed fixture request.', { exact: true }).isVisible());
+  await hasNoPageOverflow('Desktop withdrawals');
+  await page.screenshot({ path: path.join(output, 'withdrawals-fixture-desktop.png'), fullPage: true });
+  await page.goto(`${harness('/withdrawals')}&approval=enabled&approval_failure=1`);
+  await page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }).click();
+  await page.getByRole('button', { name: 'Approve withdrawal', exact: true }).click();
+  await page.locator('.confirm-dialog').getByRole('alert').filter({ hasText: 'Test approval was denied.' }).waitFor();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
   console.log('Checking responsive navigation');
   for (const width of [768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -141,12 +170,20 @@ try {
     assert.equal(await page.locator('dialog.navigation-dialog').isVisible(), false);
   }
   await page.screenshot({ path: path.join(output, 'payments-fixture-mobile.png'), fullPage: true });
+  await page.goto(`${harness('/withdrawals')}&approval=enabled`);
+  await page.getByRole('heading', { name: 'Withdrawals', exact: true }).waitFor();
+  await hasNoPageOverflow('Mobile withdrawals');
+  await page.getByRole('button', { name: 'Approve withdrawal test-withdrawal-1', exact: true }).click();
+  await page.getByRole('heading', { name: 'Approve provider withdrawal?' }).waitFor();
+  await page.screenshot({ path: path.join(output, 'approval-fixture-mobile.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await page.locator('.confirm-dialog').waitFor({ state: 'detached' });
   }
   assert.deepEqual(failures, [], `Browser errors: ${JSON.stringify(failures)}`);
   console.log(JSON.stringify({ result: 'passed', browserErrors: failures, browserWarnings: warnings, screenshots: output,
     scope: process.env.RENT_LANKA_QA_PRODUCTION === '1'
       ? 'Production bundle: actual signed-out login/router and mocked login error. No live admin login or writes.'
-      : 'Actual signed-out login/router; mocked login error; isolated provider-role and financial UI fixtures. No live admin login or writes.' }, null, 2));
+      : 'Actual signed-out login/router; mocked login error; isolated roles, ledger, withdrawal approval and responsive UI fixtures. No live admin login or financial writes.' }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ url: page.url(), browserErrors: failures,
     visibleText: (await page.locator('body').innerText()).slice(0, 5000) }, null, 2));
