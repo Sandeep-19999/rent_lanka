@@ -47,7 +47,7 @@ class RentLankaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Rent Lanka',
+      title: 'Rent Lanka', 
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF8F8FA),

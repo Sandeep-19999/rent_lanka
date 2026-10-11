@@ -1,10 +1,23 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:rent_lanka_mobile/features/user_discovery/screens/onboarding/onboarding_screen.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/home/home_screen.dart';
+import 'package:rent_lanka_mobile/features/user_discovery/screens/role/role_selection_screen.dart';
+import 'package:rent_lanka_mobile/features/provider/screens/provider_dashboard.dart';
+
+import '../../services/startup_session_service.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({
+    super.key,
+    this.resolveDestination,
+    this.destinationBuilder,
+  });
+
+  final Future<StartupDestination> Function()? resolveDestination;
+  final Widget Function(StartupDestination)? destinationBuilder;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -15,6 +28,9 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  Timer? _startupTimer;
+  bool _restoring = false;
+  bool _restoreFailed = false;
 
   static const Color primaryRed = Color(0xFFE31E24);
   static const Color darkText = Color(0xFF171717);
@@ -34,33 +50,52 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeIn,
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.88,
-      end: 1.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutBack,
-      ),
+    _scaleAnimation = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
     );
 
     _animationController.forward();
 
-    // Move to onboarding after splash screen
-    Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
+    _startupTimer = Timer(const Duration(seconds: 3), _restoreSession);
+  }
 
+  Future<void> _restoreSession() async {
+    if (!mounted || _restoring) return;
+    setState(() {
+      _restoring = true;
+      _restoreFailed = false;
+    });
+    try {
+      final destination =
+          await (widget.resolveDestination ?? StartupSessionService.restore)();
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => const OnboardingScreen(),
+          builder: (_) =>
+              widget.destinationBuilder?.call(destination) ??
+              switch (destination) {
+                StartupDestination.onboarding => const OnboardingScreen(),
+                StartupDestination.player => const HomeScreen(),
+                StartupDestination.provider => const ProviderDashboard(),
+                StartupDestination.roleSelection => const RoleSelectionScreen(),
+              },
         ),
       );
-    });
+    } catch (_) {
+      // A network/profile failure must not discard a restored login session.
+      if (mounted) {
+        setState(() {
+          _restoring = false;
+          _restoreFailed = true;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
+    _startupTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -212,15 +247,25 @@ class _SplashScreenState extends State<SplashScreen>
                         const SizedBox(height: 48),
 
                         // Modern loading indicator
-                        const SizedBox(
-                          width: 26,
-                          height: 26,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: primaryRed,
-                            backgroundColor: Color(0xFFFFE3E4),
+                        if (_restoreFailed) ...[
+                          const Text(
+                            'Unable to load your account. Please try again.',
+                            textAlign: TextAlign.center,
                           ),
-                        ),
+                          TextButton(
+                            onPressed: _restoreSession,
+                            child: const Text('Try again'),
+                          ),
+                        ] else
+                          const SizedBox(
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: primaryRed,
+                              backgroundColor: Color(0xFFFFE3E4),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -246,10 +291,7 @@ class _SplashScreenState extends State<SplashScreen>
                   SizedBox(height: 4),
                   Text(
                     'Play more, spend less.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9A9A9A),
-                    ),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF9A9A9A)),
                   ),
                 ],
               ),

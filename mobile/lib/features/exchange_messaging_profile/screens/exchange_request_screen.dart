@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:image_picker/image_picker.dart';
 
@@ -9,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/exchange_equipment_rules.dart';
+import '../models/exchange_edit_policy.dart';
 
 import '../services/exchange_service.dart';
 import 'exchange_status_screen.dart';
@@ -17,12 +19,20 @@ class ExchangeRequestScreen extends StatefulWidget {
   final String requestedEquipmentId;
   final String requestedEquipmentName;
   final String requestedProviderId;
+  final String? exchangeRequestId;
+  final Map<String, dynamic>? initialData;
+  final ExchangeService? exchangeService;
+  final FirebaseAuth? auth;
 
   const ExchangeRequestScreen({
     super.key,
     required this.requestedEquipmentId,
     required this.requestedEquipmentName,
     required this.requestedProviderId,
+    this.exchangeRequestId,
+    this.initialData,
+    this.exchangeService,
+    this.auth,
   });
 
   @override
@@ -36,7 +46,9 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
   static const Color borderColor = Color(0xFFE5E5E5);
   static const Color backgroundColor = Color(0xFFF8F8F8);
 
-  final ExchangeService _exchangeService = ExchangeService();
+  late final ExchangeService _exchangeService =
+      widget.exchangeService ?? ExchangeService();
+  late final FirebaseAuth _auth = widget.auth ?? FirebaseAuth.instance;
   final TextEditingController _messageController = TextEditingController();
 
   final _offerTitle = TextEditingController();
@@ -46,6 +58,12 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
   Uint8List? _offerPhoto;
   String _photoName = 'offer.jpg';
   CloudinaryUploadResult? _uploadedPhoto;
+  String _existingPhotoUrl = '';
+  String? _existingPhotoPublicId;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _requestChanges;
+  bool _editLocked = true;
+  bool _checkingEdit = true;
+  bool get _editing => widget.exchangeRequestId != null;
 
   String? _selectedEquipmentId;
   String? _selectedEquipmentName;
@@ -58,13 +76,52 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
   @override
   void initState() {
     super.initState();
-    _equipmentOwnerId = FirebaseAuth.instance.currentUser?.uid;
-    _authChanges = FirebaseAuth.instance.authStateChanges();
+    _equipmentOwnerId = _auth.currentUser?.uid;
+    _authChanges = _auth.authStateChanges();
     _equipmentStream = _exchangeService.watchMyEquipment();
+    if (_editing) {
+      final data = widget.initialData ?? {};
+      _enterOffer =
+          data['offeredEquipmentSource'] == 'inline' ||
+          (data['offeredEquipmentId']?.toString() ?? '').isEmpty;
+      _offerTitle.text = data['offeredEquipmentName']?.toString() ?? '';
+      _offerDetails.text = data['offeredEquipmentDetails']?.toString() ?? '';
+      _messageController.text = data['message']?.toString() ?? '';
+      _selectedEquipmentId = data['offeredEquipmentId']?.toString();
+      _selectedEquipmentName = data['offeredEquipmentName']?.toString();
+      _existingPhotoUrl = data['offeredEquipmentImageUrl']?.toString() ?? '';
+      _existingPhotoPublicId = data['offeredEquipmentImagePublicId']
+          ?.toString();
+      _requestChanges = _exchangeService
+          .watchExchangeRequest(widget.exchangeRequestId!)
+          .listen(
+            (document) {
+              if (!mounted) return;
+              setState(() {
+                _checkingEdit = false;
+                _editLocked =
+                    !document.exists ||
+                    !ExchangeEditPolicy.canEdit(
+                      document.data() ?? {},
+                      _auth.currentUser?.uid ?? '',
+                    );
+              });
+            },
+            onError: (_) {
+              if (mounted) {
+                setState(() {
+                  _checkingEdit = false;
+                  _editLocked = true;
+                });
+              }
+            },
+          );
+    }
   }
 
   @override
   void dispose() {
+    _requestChanges?.cancel();
     _offerTitle.dispose();
     _offerDetails.dispose();
     _messageController.dispose();
@@ -72,8 +129,8 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
   }
 
   Future<void> _sendExchangeRequest() async {
-    if (_isSubmitting) return;
-    if (FirebaseAuth.instance.currentUser == null) {
+    if (_isSubmitting || (_editing && _editLocked)) return;
+    if (_auth.currentUser == null) {
       _showMessage('Please log in to send an exchange request.');
       return;
     }
@@ -89,7 +146,7 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
       return;
     }
 
-    final submittingUid = FirebaseAuth.instance.currentUser!.uid;
+    final submittingUid = _auth.currentUser!.uid;
     setState(() {
       _isSubmitting = true;
     });
@@ -101,38 +158,70 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
           filename: _photoName,
         );
       }
-      if (FirebaseAuth.instance.currentUser?.uid != submittingUid) {
+      if (_auth.currentUser?.uid != submittingUid) {
         throw Exception(
           'Your login changed. Please reopen the exchange request.',
         );
       }
-      final requestId = await _exchangeService.sendExchangeRequest(
-        requestedProviderId: widget.requestedProviderId,
-        requestedEquipmentId: widget.requestedEquipmentId,
-        requestedEquipmentName: widget.requestedEquipmentName,
-        offeredEquipmentId: _enterOffer ? '' : _selectedEquipmentId!,
-        offeredEquipmentName: _enterOffer
-            ? _offerTitle.text.trim()
-            : _selectedEquipmentName!,
-        offeredEquipmentDetails: _enterOffer ? _offerDetails.text.trim() : null,
-        offeredEquipmentImageUrl: _enterOffer
-            ? _uploadedPhoto?.secureUrl ?? ''
-            : '',
-        offeredEquipmentImagePublicId: _enterOffer
-            ? _uploadedPhoto?.publicId
-            : null,
-        message: _messageController.text.trim(),
-      );
+      final String requestId;
+      if (_editing) {
+        requestId = widget.exchangeRequestId!;
+        await _exchangeService.updateExchangeRequest(
+          exchangeRequestId: requestId,
+          offeredEquipmentId: _enterOffer ? '' : _selectedEquipmentId!,
+          offeredEquipmentName: _enterOffer
+              ? _offerTitle.text.trim()
+              : _selectedEquipmentName!,
+          offeredEquipmentDetails: _enterOffer
+              ? _offerDetails.text.trim()
+              : null,
+          offeredEquipmentImageUrl: _enterOffer
+              ? _uploadedPhoto?.secureUrl ?? _existingPhotoUrl
+              : '',
+          offeredEquipmentImagePublicId: _enterOffer
+              ? _uploadedPhoto?.publicId ?? _existingPhotoPublicId
+              : null,
+          message: _messageController.text.trim(),
+        );
+      } else {
+        requestId = await _exchangeService.sendExchangeRequest(
+          requestedProviderId: widget.requestedProviderId,
+          requestedEquipmentId: widget.requestedEquipmentId,
+          requestedEquipmentName: widget.requestedEquipmentName,
+          offeredEquipmentId: _enterOffer ? '' : _selectedEquipmentId!,
+          offeredEquipmentName: _enterOffer
+              ? _offerTitle.text.trim()
+              : _selectedEquipmentName!,
+          offeredEquipmentDetails: _enterOffer
+              ? _offerDetails.text.trim()
+              : null,
+          offeredEquipmentImageUrl: _enterOffer
+              ? _uploadedPhoto?.secureUrl ?? ''
+              : '',
+          offeredEquipmentImagePublicId: _enterOffer
+              ? _uploadedPhoto?.publicId
+              : null,
+          message: _messageController.text.trim(),
+        );
+      }
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Exchange request sent successfully.'),
+        SnackBar(
+          content: Text(
+            _editing
+                ? 'Exchange request updated.'
+                : 'Exchange request sent successfully.',
+          ),
           backgroundColor: Color(0xFF2E9B50),
         ),
       );
 
+      if (_editing) {
+        Navigator.pop(context);
+        return;
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -166,15 +255,21 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
     return StreamBuilder<User?>(
       stream: _authChanges,
       builder: (context, authSnapshot) {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
+        final uid = _auth.currentUser?.uid;
         if (uid != _equipmentOwnerId) {
           _equipmentOwnerId = uid;
           _selectedEquipmentId = null;
           _selectedEquipmentName = null;
           _offerTitle.clear();
           _offerDetails.clear();
+          _messageController.clear();
+          if (_editing) {
+            _editLocked = true;
+          }
           _offerPhoto = null;
           _uploadedPhoto = null;
+          _existingPhotoUrl = '';
+          _existingPhotoPublicId = null;
           _equipmentStream = _exchangeService.watchMyEquipment();
         }
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -196,7 +291,7 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
         : snapshot.data?.docs
                   .where(
                     (doc) => ExchangeEquipmentRules.canOffer(
-                      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+                      userId: _auth.currentUser?.uid ?? '',
                       equipmentId: doc.id,
                       requestedEquipmentId: widget.requestedEquipmentId,
                       data: doc.data(),
@@ -207,6 +302,22 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
     final hasValidSelection = documents.any(
       (doc) => doc.id == _selectedEquipmentId,
     );
+    if (_editing && (_checkingEdit || _editLocked)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Edit Exchange Request')),
+        body: Center(
+          child: _checkingEdit
+              ? const CircularProgressIndicator(color: primaryRed)
+              : const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'This request cannot be edited. Only your pending requests can be changed.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -223,9 +334,9 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
           ),
         ),
         titleSpacing: 0,
-        title: const Text(
-          'Exchange Request',
-          style: TextStyle(
+        title: Text(
+          _editing ? 'Edit Exchange Request' : 'Exchange Request',
+          style: const TextStyle(
             color: darkText,
             fontSize: 20,
             fontWeight: FontWeight.w800,
@@ -243,9 +354,11 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Make an exchange offer',
-                    style: TextStyle(
+                  Text(
+                    _editing
+                        ? 'Update your exchange offer'
+                        : 'Make an exchange offer',
+                    style: const TextStyle(
                       color: darkText,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
@@ -419,7 +532,7 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
             onPressed:
                 _isSubmitting ||
                     _isPickingPhoto ||
-                    FirebaseAuth.instance.currentUser == null ||
+                    _auth.currentUser == null ||
                     (_enterOffer
                         ? _offerTitle.text.trim().isEmpty ||
                               _offerDetails.text.trim().isEmpty
@@ -444,14 +557,14 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
                       color: Colors.white,
                     ),
                   )
-                : const Row(
+                : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.swap_horiz_rounded),
-                      SizedBox(width: 8),
+                      const Icon(Icons.swap_horiz_rounded),
+                      const SizedBox(width: 8),
                       Text(
-                        'Send Exchange Request',
-                        style: TextStyle(
+                        _editing ? 'Save Changes' : 'Send Exchange Request',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -466,7 +579,7 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
 
   Future<void> _pickOfferPhoto() async {
     if (_isSubmitting || _isPickingPhoto) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     setState(() => _isPickingPhoto = true);
     try {
       final image = await ImagePicker().pickImage(
@@ -480,7 +593,7 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
       if (bytes.length > 10 * 1024 * 1024) {
         throw Exception('Please choose a photo smaller than 10 MB.');
       }
-      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+      if (!mounted || _auth.currentUser?.uid != uid) return;
       setState(() {
         _offerPhoto = bytes;
         _photoName = image.name;
@@ -530,24 +643,37 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
             borderRadius: BorderRadius.circular(14),
             child: Image.memory(_offerPhoto!, height: 160, fit: BoxFit.cover),
           ),
+        if (_offerPhoto == null && _existingPhotoUrl.isNotEmpty)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.network(
+              _existingPhotoUrl,
+              height: 160,
+              fit: BoxFit.cover,
+              errorBuilder: (_, error, stack) =>
+                  const Text('Photo unavailable'),
+            ),
+          ),
         OutlinedButton.icon(
           onPressed: _isSubmitting || _isPickingPhoto ? null : _pickOfferPhoto,
           icon: const Icon(Icons.add_photo_alternate_outlined),
           label: Text(
             _isPickingPhoto
                 ? 'Selecting photo…'
-                : _offerPhoto == null
+                : _offerPhoto == null && _existingPhotoUrl.isEmpty
                 ? 'Add photo (optional)'
                 : 'Change photo',
           ),
         ),
-        if (_offerPhoto != null)
+        if (_offerPhoto != null || _existingPhotoUrl.isNotEmpty)
           TextButton(
             onPressed: _isSubmitting
                 ? null
                 : () => setState(() {
                     _offerPhoto = null;
                     _uploadedPhoto = null;
+                    _existingPhotoUrl = '';
+                    _existingPhotoPublicId = null;
                   }),
             child: const Text('Remove photo'),
           ),
@@ -642,7 +768,7 @@ class _ExchangeRequestScreenState extends State<ExchangeRequestScreen> {
     AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
   ) {
-    if (FirebaseAuth.instance.currentUser == null) {
+    if (_auth.currentUser == null) {
       return _informationBox(
         text: 'Please log in to offer your equipment.',
         icon: Icons.login,

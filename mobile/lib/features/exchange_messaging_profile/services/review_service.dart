@@ -23,17 +23,40 @@ class ReviewService {
 
   String? get signedInUserId => _auth.currentUser?.uid;
 
+  Stream<List<ReviewModel>> watchMyReviews() async* {
+    yield* _watchReviews('reviewerId', currentUserId);
+  }
+
+  Future<String> getEquipmentName(String equipmentId) async {
+    if (equipmentId.isEmpty || equipmentId.contains('/')) return 'Equipment';
+    try {
+      final document = await _firestore
+          .collection('equipment')
+          .doc(equipmentId)
+          .get();
+      final name = document.data()?['name']?.toString().trim() ?? '';
+      return name.isEmpty ? 'Equipment' : name;
+    } on FirebaseException {
+      return 'Equipment';
+    }
+  }
+
   Stream<List<ReviewModel>> watchEquipmentReviews(String equipmentId) async* {
     if (equipmentId.trim().isEmpty || equipmentId.contains('/')) {
       throw ArgumentError('A valid equipment ID is required.');
     }
-    yield* _firestore.collection('reviews')
-        .where('equipmentId', isEqualTo: equipmentId)
+    yield* _watchReviews('equipmentId', equipmentId);
+  }
+
+  Stream<List<ReviewModel>> _watchReviews(String field, String value) {
+    return _firestore
+        .collection('reviews')
+        .where(field, isEqualTo: value)
         .snapshots()
         .map((snapshot) {
           final reviews = snapshot.docs.map(ReviewModel.fromDocument).toList();
-          reviews.sort((a, b) =>
-            (b.updatedAt ?? b.createdAt ?? DateTime(1970)).compareTo(
+          reviews.sort(
+            (a, b) => (b.updatedAt ?? b.createdAt ?? DateTime(1970)).compareTo(
               a.updatedAt ?? a.createdAt ?? DateTime(1970),
             ),
           );
@@ -42,16 +65,22 @@ class ReviewService {
   }
 
   static double? averageRating(Iterable<ReviewModel> reviews) {
-    final ratings = reviews.map((review) => review.rating)
-        .where((rating) => rating >= 1 && rating <= 5).toList();
+    final ratings = reviews
+        .map((review) => review.rating)
+        .where((rating) => rating >= 1 && rating <= 5)
+        .toList();
     if (ratings.isEmpty) return null;
-    return ratings.fold<int>(0, (total, rating) => total + rating) / ratings.length;
+    return ratings.fold<int>(0, (total, rating) => total + rating) /
+        ratings.length;
   }
 
   Future<String> getReviewerName(String reviewerId) async {
     if (reviewerId.isEmpty) return 'Rent Lanka User';
     try {
-      final profile = await _firestore.collection('users').doc(reviewerId).get();
+      final profile = await _firestore
+          .collection('users')
+          .doc(reviewerId)
+          .get();
       final name = profile.data()?['name']?.toString().trim() ?? '';
       return name.isEmpty ? 'Rent Lanka User' : name;
     } on FirebaseException {
@@ -117,17 +146,24 @@ class ReviewService {
     final uid = currentUserId;
     final reference = _firestore.collection('reviews').doc('${uid}_$bookingId');
     await _firestore.runTransaction((transaction) async {
-      final rental = await transaction.get(_firestore.collection('rental_requests').doc(bookingId));
+      final rental = await transaction.get(
+        _firestore.collection('rental_requests').doc(bookingId),
+      );
       final existing = await transaction.get(reference);
       if (currentUserId != uid) throw StateError('Please log in again.');
       final data = rental.data() ?? {};
-      if (!canReview(data, uid) || data['equipmentId'] != equipmentId ||
+      if (!canReview(data, uid) ||
+          data['equipmentId'] != equipmentId ||
           data['providerId'] != providerId) {
         throw Exception('Only your completed rental can be reviewed.');
       }
       transaction.set(reference, {
-        'reviewerId': uid, 'providerId': providerId, 'equipmentId': equipmentId,
-        'bookingId': bookingId, 'rating': rating, 'comment': cleanComment,
+        'reviewerId': uid,
+        'providerId': providerId,
+        'equipmentId': equipmentId,
+        'bookingId': bookingId,
+        'rating': rating,
+        'comment': cleanComment,
         'updatedAt': FieldValue.serverTimestamp(),
         if (!existing.exists) 'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -135,13 +171,21 @@ class ReviewService {
   }
 
   static bool canReview(Map<String, dynamic> rental, String uid) =>
-      uid.isNotEmpty && rental['playerId'] == uid && rental['status']?.toString().trim().toLowerCase() == 'completed';
+      uid.isNotEmpty &&
+      rental['playerId'] == uid &&
+      rental['status']?.toString().trim().toLowerCase() == 'completed';
 
   Future<void> deleteReview(String bookingId) async {
-    final reference = _firestore
-        .collection('reviews')
-        .doc(_reviewDocumentId(bookingId));
-
-    await reference.delete();
+    final uid = currentUserId;
+    final reference = _firestore.collection('reviews').doc('${uid}_$bookingId');
+    await _firestore.runTransaction((transaction) async {
+      final document = await transaction.get(reference);
+      if (currentUserId != uid) throw StateError('Please log in again.');
+      if (!document.exists) return;
+      if (document.data()?['reviewerId'] != uid) {
+        throw StateError('You can delete only your own review.');
+      }
+      transaction.delete(reference);
+    });
   }
 }
