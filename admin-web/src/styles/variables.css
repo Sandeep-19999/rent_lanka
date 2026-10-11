@@ -1,0 +1,38 @@
+:root {
+  color-scheme: dark;
+  --color-primary: #ed1235;
+  --color-primary-hover: #ff3152;
+  --color-primary-soft: rgba(237, 18, 53, .12);
+  --color-background: #101012;
+  --color-background-elevated: #242424;
+  --color-glass: rgba(28, 28, 32, .72);
+  --color-glass-strong: rgba(30, 30, 34, .92);
+  --color-border: rgba(255, 255, 255, .08);
+  --color-border-hover: rgba(255, 255, 255, .16);
+  --color-text: #f8f8fa;
+  --color-text-muted: #acacb5;
+  --color-success: #2e7d32;
+  --color-success-text: #a0d8a5;
+  --color-warning: #e08a00;
+  --color-warning-text: #ffc66d;
+  --color-danger: #ed1235;
+  --color-danger-text: #ff8195;
+  --color-info: #a7b1c3;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --blur-sm: 12px;
+  --blur-md: 18px;
+  --blur-lg: 24px;
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, .12);
+  --shadow-md: 0 18px 48px rgba(0, 0, 0, .2);
+  --shadow-glow: 0 0 28px rgba(237, 18, 53, .08);
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --sidebar-width: 248px;
+  --font-family: Arial, Helvetica, sans-serif;
+}

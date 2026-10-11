@@ -1,0 +1,126 @@
+// RECOMMENDATION ONLY. NOT A COMPLETE RULESET. NOT DEPLOYED.
+// Merge into the existing match /databases/{database}/documents block.
+// First review ALL overlapping existing allow statements. Firestore combines
+// allow statements with OR; another broad grant can bypass these restrictions.
+// Do not replace existing mobile permissions with this file.
+
+function isRentLankaAdmin() {
+  return request.auth != null
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
+}
+
+// AND these conditions into EXISTING owner profile create/update grants.
+// They are guards, not new grants. Keep the existing ownership and field checks.
+// Initial profile creation without a role remains compatible with mobile signup.
+function safeSelfRoleOnCreate() {
+  return request.resource.data.get('role', '') in ['', 'player', 'provider'];
+}
+function safeSelfRoleOnUpdate() {
+  return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+    || (resource.data.get('role', '') != 'admin'
+      && request.resource.data.get('role', '') in ['player', 'provider']);
+}
+// Example integration pattern (replace placeholders with EXISTING conditions):
+// allow create: if EXISTING_OWNER_CREATE_CONDITION && safeSelfRoleOnCreate();
+// allow update: if EXISTING_OWNER_UPDATE_CONDITION && safeSelfRoleOnUpdate();
+// Trusted Firebase Console / Admin SDK provisioning is outside client rules.
+
+function validAdminRefundData(bookingId, refund, original, beforeBooking, afterBooking) {
+  return refund.keys().hasAll([
+      'originalPaymentId', 'bookingId', 'bookingReference', 'playerId', 'providerId',
+      'type', 'method', 'amount', 'currency', 'status', 'transactionId', 'createdAt',
+      'refundReason', 'refundedBy', 'updatedAt', 'updatedBy'
+    ])
+    && refund.keys().hasOnly([
+      'originalPaymentId', 'bookingId', 'bookingReference', 'playerId', 'providerId',
+      'type', 'method', 'amount', 'currency', 'status', 'transactionId', 'createdAt',
+      'refundReason', 'refundedBy', 'updatedAt', 'updatedBy'
+    ])
+    && refund.bookingId == bookingId
+    && refund.originalPaymentId is string
+    && refund.type == 'refund' && refund.status == 'refunded'
+    && refund.currency == 'LKR'
+    && refund.amount is number && refund.amount > 0
+    && refund.method in ['card', 'online_banking']
+    && refund.transactionId is string && refund.transactionId.size() > 0
+    && refund.playerId is string && refund.playerId.size() > 0
+    && refund.providerId is string && refund.providerId.size() > 0
+    && original.get('type', 'charge') == 'charge' && original.status == 'paid'
+    && original.bookingId == bookingId
+    && original.currency == 'LKR'
+    && refund.amount == original.amount && refund.amount == beforeBooking.totalPayable
+    && refund.method == original.method && refund.method == beforeBooking.paymentMethod
+    && refund.playerId == original.playerId && refund.playerId == beforeBooking.playerId
+    && refund.providerId == original.providerId && refund.providerId == beforeBooking.providerId
+    && refund.transactionId == original.transactionId
+    && refund.transactionId == beforeBooking.transactionId
+    && refund.bookingReference is string
+    && (refund.bookingReference == original.get('bookingReference', '')
+      || refund.bookingReference == beforeBooking.get('bookingReference', ''))
+    && beforeBooking.status in ['rejected', 'cancelled']
+    && beforeBooking.paymentStatus == 'paid'
+    && afterBooking.paymentStatus == 'refunded'
+    && afterBooking.diff(beforeBooking).affectedKeys().hasOnly(['paymentStatus', 'updatedAt', 'updatedBy'])
+    && afterBooking.updatedAt == request.time && afterBooking.updatedBy == request.auth.uid
+    && refund.refundReason is string
+    && refund.refundReason.size() >= 5 && refund.refundReason.size() <= 500
+    && refund.createdAt == request.time && refund.updatedAt == request.time
+    && refund.refundedBy == request.auth.uid && refund.updatedBy == request.auth.uid;
+}
+
+function createsValidAdminRefund(refundId) {
+  let refund = request.resource.data;
+  let bookingId = refund.bookingId;
+  let bookingPath = /databases/$(database)/documents/rental_requests/$(bookingId);
+  let originalPath = /databases/$(database)/documents/payments/$(refund.originalPaymentId);
+  return isRentLankaAdmin()
+    && refundId == bookingId + '_refund'
+    && validAdminRefundData(bookingId, refund, get(originalPath).data,
+      get(bookingPath).data, getAfter(bookingPath).data);
+}
+
+function updatesBookingForAdminRefund(bookingId) {
+  let refundPath = /databases/$(database)/documents/payments/$(bookingId + '_refund');
+  let refund = getAfter(refundPath).data;
+  let originalPath = /databases/$(database)/documents/payments/$(refund.originalPaymentId);
+  return isRentLankaAdmin()
+    && !exists(refundPath)
+    && validAdminRefundData(bookingId, refund, get(originalPath).data,
+      resource.data, request.resource.data);
+}
+
+// Add these admin grants to the corresponding EXISTING collection matches.
+// Preserve mobile grants only after validating their ownership/field constraints.
+match /users/{uid} {
+  allow get: if isRentLankaAdmin();
+  // Existing self-create/update grants MUST incorporate the role guards above.
+}
+match /payments/{paymentId} {
+  allow read: if isRentLankaAdmin();
+  allow create: if createsValidAdminRefund(paymentId);
+  // No admin grant for updating or deleting original charges or refund entries.
+}
+match /rental_requests/{bookingId} {
+  allow read: if isRentLankaAdmin();
+  allow update: if updatesBookingForAdminRefund(bookingId);
+}
+match /equipment/{equipmentId} {
+  allow get: if isRentLankaAdmin();
+}
+match /withdrawals/{withdrawalId} {
+  allow read: if isRentLankaAdmin();
+}
+
+// No admin grants for bank account numbers, equipment/slot lifecycle writes,
+// withdrawals processing, financial deletes, or notifications are needed here.
+// Before enabling VITE_ENABLE_ADMIN_REFUNDS:
+// 1. Inspect deployed rules and overlapping broad grants.
+// 2. Confirm existing non-admin refund creates follow bookingId + '_refund'.
+//    The admin client checks older alternate-ID refunds before its transaction;
+//    Security Rules cannot query the whole ledger for legacy duplicates.
+//    Reconcile existing alternate-ID refunds before enabling writes.
+// 3. Test the MERGED rules in the Firebase emulator, including existing mobile
+//    signup/role selection, booking, cancellation, provider transitions and reads.
+// 4. Test concurrent admin refunds, atomicity, self-promotion, original charge
+//    editing/deletion, mismatched amounts and completed-rental rejection.
+// 5. Deploy only through the project's trusted rule-management process.
