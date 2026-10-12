@@ -45,7 +45,7 @@ export async function performWithdrawalApproval(transaction, { withdrawalId, uid
 /** Rejection releases the request reservation via the existing mobile balance calculation. */
 export async function performWithdrawalRejection(transaction, { withdrawalId, uid, reason, timestamp }) {
   if (!validId(withdrawalId) || !validId(uid)) throw new WithdrawalError('Invalid withdrawal or administrator reference.');
-  if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) throw new WithdrawalError('A rejection reason of 1?500 characters is required.');
+  if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) throw new WithdrawalError('A rejection reason of 1-500 characters is required.');
   const profile = await transaction.read('users', uid);
   const withdrawal = await transaction.read('withdrawals', withdrawalId);
   if (!isAdminProfile(profile)) throw new WithdrawalError('Your account is no longer authorized as an administrator.');

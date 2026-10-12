@@ -10,7 +10,7 @@ const fields = {
 const config = Object.fromEntries(Object.entries(fields).map(([key, variable]) => [key, import.meta.env[variable]?.trim()]));
 const missing = Object.entries(fields).filter(([key]) => !config[key]).map(([, variable]) => variable);
 let setupError = missing.length
-  ? `Firebase configuration is missing: ${missing.join(', ')}. Copy .env.example to .env.local and restart Vite.`
+  ? `Firebase configuration is missing: ${missing.join(', ')}. Add the public Firebase Web SDK values to .env.local and restart Vite.`
   : config.projectId !== 'rent-lanka' ? 'This portal must use the existing rent-lanka Firebase project.' : '';
 
 let initializedAuth = null;
