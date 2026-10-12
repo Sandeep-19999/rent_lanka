@@ -56,6 +56,15 @@ class BookingDraft {
   }
 }
 
+/// What the Edit Booking screen needs: the latest listing (for the new
+/// price) and the days the booking cannot move to.
+class BookingEditOptions {
+  final Equipment equipment;
+  final Set<String> unavailable;
+
+  const BookingEditOptions({required this.equipment, required this.unavailable});
+}
+
 /// Firestore backend for Equipment Details, Booking, Payment,
 /// Booking Confirmation and My Bookings.
 ///
@@ -119,25 +128,50 @@ class BookingService {
   /// Dates that cannot be booked: provider-blocked dates plus every day
   /// covered by an existing pending / accepted / active booking.
   Future<Set<String>> unavailableDateKeys(Equipment equipment) async {
-    final keys = <String>{...equipment.unavailableDates};
+    return {
+      ...equipment.unavailableDates,
+      ...blockingSlotDays(await _slotsFor(equipment.id)),
+    };
+  }
 
-    // Single-field query (no composite index needed); status filtered here.
+  // Single-field query (no composite index needed); status filtered later.
+  Future<Map<String, Map<String, dynamic>>> _slotsFor(String equipmentId) async {
     final snapshot =
-        await _slots.where('equipmentId', isEqualTo: equipment.id).get();
+        await _slots.where('equipmentId', isEqualTo: equipmentId).get();
+    return {for (final doc in snapshot.docs) doc.id: doc.data()};
+  }
 
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
+  /// Every day held by a pending / accepted / active booking slot.
+  /// [excludingBookingId] leaves out the booking that is being edited.
+  static Set<String> blockingSlotDays(
+    Map<String, Map<String, dynamic>> slots, {
+    String? excludingBookingId,
+  }) {
+    final keys = <String>{};
+    slots.forEach((bookingId, data) {
+      if (bookingId == excludingBookingId) return;
       final status = data['status']?.toString().toLowerCase() ?? '';
-      if (!BookingStatus.blocking.contains(status)) continue;
+      if (!BookingStatus.blocking.contains(status)) return;
 
       final start = AppDates.parseKey(data['startDate']?.toString() ?? '');
       final end = AppDates.parseKey(data['endDate']?.toString() ?? '');
-      if (start == null || end == null) continue;
+      if (start == null || end == null) return;
 
       keys.addAll(AppDates.daysInRange(start, end).map(AppDates.key));
-    }
+    });
     return keys;
   }
+
+  /// Days an edited booking cannot move to: provider-blocked dates and other
+  /// bookings' reservations. The booking's own current dates stay free.
+  static Set<String> unavailableForEdit({
+    required Map<String, dynamic> listing,
+    required Map<String, Map<String, dynamic>> slots,
+    required String bookingId,
+  }) => {
+    ...ReservationDates.effective(listing, excluding: bookingId),
+    ...blockingSlotDays(slots, excludingBookingId: bookingId),
+  };
 
   /// Returns an error message, or null when the range can be booked.
   static String? validateDates({
@@ -373,6 +407,228 @@ class BookingService {
     }
     });
     return bookingRef.id;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Edit Booking (pending + Cash on Pickup only)
+  // ---------------------------------------------------------------------------
+
+  static const String _notEditable =
+      'This booking can no longer be changed. Only Cash on Pickup bookings '
+      'waiting for provider approval can be edited.';
+
+  /// Loads the latest listing and the blocked days for the edit screen.
+  Future<BookingEditOptions> loadEditOptions(Booking booking) async {
+    final playerId = _requirePlayerId();
+    if (booking.playerId != playerId) {
+      throw const BookingException('This booking does not belong to you.');
+    }
+    if (!booking.canEdit) throw const BookingException(_notEditable);
+
+    final equipmentDoc = await _equipment.doc(booking.equipmentId).get();
+    final listing = equipmentDoc.data();
+    if (listing == null) {
+      throw const BookingException('This equipment is no longer listed.');
+    }
+    final Equipment equipment;
+    try {
+      equipment = Equipment.fromDiscovery({...listing, 'id': equipmentDoc.id});
+    } on FormatException {
+      throw const BookingException(
+          'This equipment is not available right now, so the booking cannot '
+          'be changed. You can still cancel it.');
+    }
+    if (equipment.providerId != booking.providerId) {
+      throw const BookingException('The listing changed. Please cancel and book again.');
+    }
+
+    return BookingEditOptions(
+      equipment: equipment,
+      unavailable: unavailableForEdit(
+        listing: listing,
+        slots: await _slotsFor(booking.equipmentId),
+        bookingId: booking.id,
+      ),
+    );
+  }
+
+  /// Moves a pending Cash on Pickup booking to new dates and/or switches it
+  /// to Card / Online Banking (charged now).
+  ///
+  /// The price is recalculated from the latest listing, the new dates are
+  /// re-checked, and the booking, its slot, the equipment reservation,
+  /// any payment record and the notifications are written in one
+  /// transaction. Throws [BookingException] with a user-facing message.
+  Future<void> updateBooking({
+    required Booking booking,
+    required DateTime startDate,
+    required DateTime endDate,
+    required PaymentMethod paymentMethod,
+    CardDetails? card,
+    String? bank,
+  }) async {
+    final playerId = _requirePlayerId();
+    final start = AppDates.dateOnly(startDate);
+    final end = AppDates.dateOnly(endDate);
+    final datesChanged = AppDates.key(start) != booking.startDate ||
+        AppDates.key(end) != booking.endDate;
+    if (!datesChanged && paymentMethod == booking.paymentMethod) {
+      throw const BookingException('You have not changed anything.');
+    }
+
+    // Also checks ownership and that the booking is still editable.
+    final options = await loadEditOptions(booking);
+    final dateError = validateDates(
+      start: start,
+      end: end,
+      unavailable: options.unavailable,
+    );
+    if (dateError != null) throw BookingException(dateError);
+
+    final equipment = options.equipment;
+    final draft = BookingDraft(
+      equipment: equipment,
+      startDate: start,
+      endDate: end,
+      pickupMethod: booking.pickupMethod,
+      deliveryAddress: booking.deliveryAddress,
+      note: booking.note,
+    );
+    final price = draft.price;
+
+    if (_requirePlayerId() != playerId) {
+      throw const BookingException('Your login changed. Please try again.');
+    }
+    // Cash returns pay_on_pickup without charging; card / bank are charged.
+    final payment = await _payments.process(
+      method: paymentMethod,
+      amount: price.totalPayable,
+      card: card,
+      bank: bank,
+    );
+    if (!payment.success) throw BookingException(payment.message);
+
+    final bookingRef = _bookings.doc(booking.id);
+    final equipmentRef = _equipment.doc(booking.equipmentId);
+    final startKey = AppDates.key(start);
+    final endKey = AppDates.key(end);
+    final newDates = AppDates.daysInRange(start, end).map(AppDates.key).toList();
+    final period = AppDates.prettyRange(startKey, endKey);
+    final now = FieldValue.serverTimestamp();
+
+    await _db.runTransaction((transaction) async {
+      final currentDoc = await transaction.get(bookingRef);
+      final listingDoc = await transaction.get(equipmentRef);
+      if (!currentDoc.exists) throw const BookingException('Booking not found.');
+
+      // The provider may have accepted / rejected it while the player was editing.
+      final current = Booking.fromDoc(currentDoc);
+      if (current.playerId != playerId) {
+        throw const BookingException('This booking does not belong to you.');
+      }
+      if (!current.canEdit) throw const BookingException(_notEditable);
+
+      final listing = listingDoc.data();
+      if (listing == null || listing['isAvailable'] == false ||
+          listing['status']?.toString().trim().toLowerCase() != 'available') {
+        throw const BookingException('Equipment is no longer available.');
+      }
+      if (listing['providerId'] != equipment.providerId ||
+          listing['pricePerDay'] != equipment.pricePerDay ||
+          listing['securityDeposit'] != equipment.securityDeposit) {
+        throw const BookingException('The listing changed. Please open the booking again.');
+      }
+      if (newDates.any(
+          ReservationDates.effective(listing, excluding: booking.id).contains)) {
+        throw const BookingException('These dates were just reserved. Please choose other dates.');
+      }
+
+      transaction.update(
+          equipmentRef, ReservationDates.change(listing, booking.id, newDates));
+      transaction.update(bookingRef, {
+        'startDate': startKey,
+        'endDate': endKey,
+        'startTimestamp': Timestamp.fromDate(start),
+        'endTimestamp': Timestamp.fromDate(end),
+        'rentalDays': price.rentalDays,
+        'pickupLocation': draft.pickupLocation,
+        'pricePerDay': price.pricePerDay,
+        'totalAmount': price.rentalCost,
+        'deliveryFee': price.deliveryFee,
+        'serviceFee': price.serviceFee,
+        'depositAmount': price.deposit,
+        'totalPayable': price.totalPayable,
+        'paymentMethod': paymentMethod.value,
+        'paymentStatus': payment.paymentStatus,
+        'transactionId': payment.transactionId,
+        'cardLast4': payment.cardLast4,
+        'updatedAt': now,
+        'editCount': FieldValue.increment(1),
+      });
+      transaction.set(_slots.doc(booking.id), {
+        'equipmentId': booking.equipmentId,
+        'startDate': startKey,
+        'endDate': endKey,
+        'status': BookingStatus.pending,
+        'updatedAt': now,
+      }, SetOptions(merge: true));
+
+      if (payment.paymentStatus == PaymentStatus.paid) {
+        transaction.set(_paymentRecords.doc(), {
+          'bookingId': booking.id,
+          'bookingReference': booking.bookingReference,
+          'playerId': playerId,
+          'providerId': booking.providerId,
+          'type': 'charge',
+          'method': paymentMethod.value,
+          'amount': price.totalPayable,
+          'currency': 'LKR',
+          'status': payment.paymentStatus,
+          'transactionId': payment.transactionId,
+          'cardLast4': payment.cardLast4,
+          'bank': bank ?? '',
+          'createdAt': now,
+        });
+      }
+
+      final changes = [
+        if (datesChanged) 'new dates $period',
+        if (paymentMethod != booking.paymentMethod) 'paying by ${paymentMethod.label}',
+      ].join(', ');
+
+      _addNotification(
+        transaction,
+        userId: playerId,
+        bookingId: booking.id,
+        type: 'booking',
+        title: 'Booking updated',
+        message: '${booking.bookingReference}: ${booking.equipmentName} - $changes.',
+      );
+      if (payment.paymentStatus == PaymentStatus.paid) {
+        _addNotification(
+          transaction,
+          userId: playerId,
+          bookingId: booking.id,
+          type: 'payment',
+          title: 'Payment confirmed',
+          message: '${formatLkr(price.totalPayable)} paid for '
+              '${booking.bookingReference} (${payment.transactionId}).',
+        );
+      }
+      _addNotification(
+        transaction,
+        userId: booking.providerId,
+        bookingId: booking.id,
+        type: 'rental_request',
+        title: 'Rental request updated',
+        message: '${booking.playerName} changed the request for '
+            '${booking.equipmentName}: $changes.',
+      );
+
+      if (_requirePlayerId() != playerId) {
+        throw const BookingException('Your login changed. Please try again.');
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
