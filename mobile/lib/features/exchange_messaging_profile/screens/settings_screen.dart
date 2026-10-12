@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/widgets/notification_icon_with_badge.dart';
 import 'package:flutter/material.dart';
 
 import '../services/settings_service.dart';
@@ -357,7 +358,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: const Color(0xFFFFF4E5),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: const Icon(
+            child: NotificationIconWithBadge(icon:
               Icons.notifications_none_rounded,
               color: Color(0xFFE28B1A),
               size: 23,

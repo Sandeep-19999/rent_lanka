@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/widgets/notification_icon_with_badge.dart';
 import '../../exchange_messaging_profile/screens/my_exchanges_screen.dart';
 import '../../exchange_messaging_profile/services/exchange_service.dart';
 import '../../exchange_messaging_profile/screens/notifications_screen.dart';
@@ -583,7 +584,7 @@ class ProviderDashboard extends StatelessWidget {
           IconButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(
               builder: (_) => const NotificationsScreen())),
-            icon: const Icon(Icons.notifications_none_rounded, size: 27),
+            icon: NotificationIconWithBadge(icon:Icons.notifications_none_rounded, size: 27),
           ),
         ]);
       },

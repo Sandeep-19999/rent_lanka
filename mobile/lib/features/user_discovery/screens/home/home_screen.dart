@@ -1,3 +1,4 @@
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/widgets/notification_icon_with_badge.dart';
 import 'package:rent_lanka_mobile/features/provider/services/cloudinary_service.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Stream<List<EquipmentModel>> _equipmentStream;
 
   String _userName = 'Player';
+  String? _selectedCategory;
 
   final List<Map<String, dynamic>> _categories = [
     {'name': 'Cricket', 'icon': Icons.sports_cricket},
@@ -178,8 +180,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openCategory(String category) {
-    Navigator.push(
+  Future<void> _openCategory(String category) async {
+    setState(() {
+      _selectedCategory = category;
+    });
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CategoryEquipmentScreen(
@@ -187,6 +192,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+    if (!mounted) return;
+    setState(() {
+      _selectedCategory = null;
+    });
   }
 
   @override
@@ -358,8 +367,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   },
-                  icon: const Icon(
-                    Icons.notifications_none_rounded,
+                  icon: NotificationIconWithBadge(
+                    dotOnly: true,
+                    badgeColor: primaryRed,
+                    icon: Icons.notifications_none_rounded,
                     color: darkText,
                     size: 22,
                   ),
@@ -450,6 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final category = _categories[index];
+          final isSelected = category['name'] == _selectedCategory;
 
           return InkWell(
             borderRadius: BorderRadius.circular(14),
@@ -470,7 +482,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius:
                           BorderRadius.circular(14),
                       border: Border.all(
-                        color: index == 0
+                        color: isSelected
                             ? primaryRed
                             : const Color(0xFFEAEAEA),
                       ),
@@ -478,7 +490,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Icon(
                       category['icon'] as IconData,
                       size: 29,
-                      color: index == 0
+                      color: isSelected
                           ? primaryRed
                           : const Color(0xFF333333),
                     ),
@@ -491,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: index == 0
+                      color: isSelected
                           ? primaryRed
                           : darkText,
                     ),

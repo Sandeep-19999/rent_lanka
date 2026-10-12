@@ -1,3 +1,5 @@
+import 'unread_notification_count.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -24,6 +26,25 @@ class NotificationService {
         .collection('notifications')
         .where('userId', isEqualTo: currentUserId)
         .snapshots();
+  }
+
+  Stream<int> watchUnreadNotificationCount() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(0);
+    // Keep legacy missing-isRead behavior identical to NotificationsScreen.
+    // This reads only this user's records, never the whole collection.
+    return _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map(
+          (snapshot) => _auth.currentUser?.uid == uid
+              ? unreadNotificationCount(
+                  snapshot.docs.map((document) => document.data()),
+                  uid,
+                )
+              : 0,
+        );
   }
 
   Future<String> createNotification({
