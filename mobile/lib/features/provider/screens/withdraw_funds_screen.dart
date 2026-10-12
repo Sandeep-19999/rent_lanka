@@ -96,7 +96,7 @@ class _WithdrawFundsScreenState
       amountController.text.trim(),
     );
 
-    if (amount == null || amount <= 0) {
+    if (amount == null || !amount.isFinite || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -194,7 +194,7 @@ class _WithdrawFundsScreenState
           content: Text(
             'Withdrawal request for Rs. '
             '${_formatPrice(amount)} '
-            'submitted successfully.',
+            'submitted. Awaiting admin approval.',
           ),
           backgroundColor: Colors.green,
         ),

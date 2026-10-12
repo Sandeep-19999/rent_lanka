@@ -1,3 +1,4 @@
+import 'features/exchange_messaging_profile/widgets/notification_icon_with_badge.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -358,7 +359,9 @@ class _PreviewTile extends StatelessWidget {
             color: const Color(0xFFFFEDF0),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: primaryRed),
+          child: icon == Icons.notifications_none
+              ? NotificationIconWithBadge(icon: icon, color: primaryRed)
+              : Icon(icon, color: primaryRed),
         ),
         title: Text(
           title,

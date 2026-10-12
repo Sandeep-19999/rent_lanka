@@ -2,8 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class UserService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  UserService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   // Save or update the logged-in user's role
   Future<void> saveUserRole(String role) async {
@@ -13,16 +17,20 @@ class UserService {
       throw Exception('No logged-in user found.');
     }
 
-    await _firestore.collection('users').doc(user.uid).set(
-      {
+    final reference = _firestore.collection('users').doc(user.uid);
+    await _firestore.runTransaction<void>((transaction) async {
+      final existing = await transaction.get(reference);
+      if (_auth.currentUser?.uid != user.uid) {
+        throw StateError('Your login changed. Please select your role again.');
+      }
+      transaction.set(reference, {
         'uid': user.uid,
-        'name': user.displayName ?? '',
-        'email': user.email ?? '',
+        if (!existing.exists) 'name': user.displayName ?? '',
+        if (!existing.exists) 'email': user.email ?? '',
         'role': role,
         'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+      }, SetOptions(merge: true));
+    });
   }
 
   // Get logged-in user's saved role
@@ -33,8 +41,10 @@ class UserService {
       return null;
     }
 
-    final DocumentSnapshot<Map<String, dynamic>> document =
-        await _firestore.collection('users').doc(user.uid).get();
+    final DocumentSnapshot<Map<String, dynamic>> document = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .get();
 
     if (!document.exists) {
       return null;

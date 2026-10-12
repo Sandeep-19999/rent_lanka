@@ -1,3 +1,4 @@
+import '../../services/recent_search_service.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:rent_lanka_mobile/features/user_discovery/screens/search/search_results_screen.dart';
@@ -20,11 +21,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   late TextEditingController _searchController;
 
-  final List<String> _recentSearches = [
-    'Cricket bat',
-    'Camping tent',
-    'Badminton racket',
-  ];
+  List<String> _recentSearches = [];
+  final RecentSearchService _recentSearchService = RecentSearchService.instance;
+  late final Future<void> _historyLoaded;
 
   @override
   void initState() {
@@ -33,22 +32,37 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchController = TextEditingController(
       text: widget.initialQuery ?? '',
     );
+    _historyLoaded = _loadRecentSearches();
   }
 
-  void _performSearch(String value) {
+  Future<void> _loadRecentSearches() async {
+    try {
+      final saved = await _recentSearchService.load();
+      if (mounted) setState(() => _recentSearches = saved);
+    } catch (_) {
+      // Local storage errors must not prevent equipment searches.
+    }
+  }
+
+  Future<void> _persistRecentSearches() async {
+    try { await _recentSearchService.save(_recentSearches); } catch (_) {
+      // Keep the current session's history usable if storage is unavailable.
+    }
+  }
+
+  Future<void> _performSearch(String value) async {
     final query = value.trim();
 
     if (query.isEmpty) {
       return;
     }
 
-    if (!_recentSearches.any(
-      (item) => item.toLowerCase() == query.toLowerCase(),
-    )) {
-      setState(() {
-        _recentSearches.insert(0, query);
-      });
-    }
+    await _historyLoaded;
+    if (!mounted) return;
+    setState(() {
+      _recentSearches = RecentSearchService.add(_recentSearches, query);
+    });
+    _persistRecentSearches();
 
     Navigator.push(
       context,
@@ -64,6 +78,7 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _recentSearches.removeAt(index);
     });
+    _persistRecentSearches();
   }
 
   @override

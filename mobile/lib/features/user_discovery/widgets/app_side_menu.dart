@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../exchange_messaging_profile/services/profile_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -86,7 +88,13 @@ class AppSideMenu extends StatelessWidget {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  _buildHeader(name),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: user == null ? null : ProfileService().watchProfile(),
+                    builder: (context, snapshot) {
+                      final savedName = snapshot.data?.data()?['name']?.toString().trim() ?? '';
+                      return _buildHeader(savedName.isEmpty ? name : savedName);
+                    },
+                  ),
 
                   Padding(
                     padding: const EdgeInsets.fromLTRB(

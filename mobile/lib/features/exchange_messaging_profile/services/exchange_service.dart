@@ -1,9 +1,11 @@
 import '../utils/resubscribable_stream.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'notification_service.dart';
 import '../models/exchange_equipment_rules.dart';
+import '../models/exchange_edit_policy.dart';
 
 class ExchangeService {
   final FirebaseFirestore _firestore;
@@ -24,10 +26,12 @@ class ExchangeService {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMyEquipment() {
-    return resubscribableStream(() => _firestore
-        .collection('equipment')
-        .where('providerId', isEqualTo: currentUserId)
-        .snapshots());
+    return resubscribableStream(
+      () => _firestore
+          .collection('equipment')
+          .where('providerId', isEqualTo: currentUserId)
+          .snapshots(),
+    );
   }
 
   Future<String> sendExchangeRequest({
@@ -155,17 +159,21 @@ class ExchangeService {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMySentExchangeRequests() {
-    return resubscribableStream(() => _firestore
-        .collection('exchange_requests')
-        .where('senderId', isEqualTo: currentUserId)
-        .snapshots());
+    return resubscribableStream(
+      () => _firestore
+          .collection('exchange_requests')
+          .where('senderId', isEqualTo: currentUserId)
+          .snapshots(),
+    );
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchIncomingExchangeRequests() {
-    return resubscribableStream(() => _firestore
-        .collection('exchange_requests')
-        .where('requestedProviderId', isEqualTo: currentUserId)
-        .snapshots());
+    return resubscribableStream(
+      () => _firestore
+          .collection('exchange_requests')
+          .where('requestedProviderId', isEqualTo: currentUserId)
+          .snapshots(),
+    );
   }
 
   Future<String> getUserDisplayName(String userId) async {
@@ -272,36 +280,47 @@ class ExchangeService {
     required String offeredEquipmentId,
     required String offeredEquipmentName,
     required String message,
+    String? offeredEquipmentDetails,
+    String offeredEquipmentImageUrl = '',
+    String? offeredEquipmentImagePublicId,
   }) async {
     final reference = _firestore
         .collection('exchange_requests')
         .doc(exchangeRequestId);
 
-    final document = await reference.get();
-
-    if (!document.exists) {
-      throw Exception('Exchange request not found.');
-    }
-
-    final data = document.data() ?? {};
-
-    final String senderId = data['senderId']?.toString() ?? '';
-
-    final String status = data['status']?.toString().toLowerCase() ?? 'pending';
-
-    if (senderId != currentUserId) {
-      throw Exception('You cannot edit this exchange request.');
-    }
-
-    if (status != 'pending') {
-      throw Exception('Only pending exchange requests can be edited.');
-    }
-
-    await reference.update({
-      'offeredEquipmentId': offeredEquipmentId,
-      'offeredEquipmentName': offeredEquipmentName,
-      'message': message.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    final senderId = currentUserId;
+    await _firestore.runTransaction((transaction) async {
+      final document = await transaction.get(reference);
+      if (!document.exists) {
+        throw Exception('Exchange request not found.');
+      }
+      final data = document.data() ?? {};
+      if (!ExchangeEditPolicy.canEdit(data, senderId)) {
+        throw Exception('Only your pending exchange requests can be edited.');
+      }
+      final equipment =
+          offeredEquipmentDetails != null || offeredEquipmentId.isEmpty
+          ? null
+          : (await transaction.get(
+              _firestore.collection('equipment').doc(offeredEquipmentId),
+            )).data();
+      if (currentUserId != senderId) {
+        throw Exception('Your login changed. Please reopen the request.');
+      }
+      transaction.update(reference, {
+        ...ExchangeEditPolicy.patch(
+          request: data,
+          userId: senderId,
+          offeredEquipmentId: offeredEquipmentId,
+          offeredEquipmentName: offeredEquipmentName,
+          message: message,
+          offeredEquipmentDetails: offeredEquipmentDetails,
+          offeredEquipmentImageUrl: offeredEquipmentImageUrl,
+          offeredEquipmentImagePublicId: offeredEquipmentImagePublicId,
+          equipment: equipment,
+        ),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 
