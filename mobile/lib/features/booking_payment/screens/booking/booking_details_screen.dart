@@ -7,6 +7,7 @@ import '../../models/booking_model.dart';
 import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/booking_widgets.dart';
+import 'edit_booking_screen.dart';
 
 /// Booking Details: status progress, rental + pickup info, payment
 /// receipt and the Cancel Booking action.
@@ -138,6 +139,14 @@ class BookingDetailsScreen extends StatelessWidget {
               label: 'Rate & Review', icon: Icons.star_outline,
               onPressed: () => Navigator.push(context, MaterialPageRoute(
                 builder: (_) => RateReviewScreen(initialBookingId: booking.id),
+              )),
+            ),
+          if (booking.canEdit)
+            SecondaryButton(
+              label: 'Edit Dates / Payment',
+              icon: Icons.edit_calendar_outlined,
+              onPressed: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => EditBookingScreen(booking: booking),
               )),
             ),
           if (booking.canCancel)

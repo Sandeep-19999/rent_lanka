@@ -214,6 +214,13 @@ class Booking {
 
   bool get canCancel => BookingStatus.upcoming.contains(status);
 
+  /// Dates and payment method can be changed only while the provider has
+  /// not responded and nothing has been paid yet (Cash on Pickup).
+  bool get canEdit =>
+      status == BookingStatus.pending &&
+      paymentMethod == PaymentMethod.cashOnPickup &&
+      paymentStatus == PaymentStatus.payOnPickup;
+
   bool get isUpcoming => BookingStatus.upcoming.contains(status);
   bool get isActive => status == BookingStatus.active;
   bool get isPast => BookingStatus.past.contains(status);

@@ -6,6 +6,7 @@ import '../../services/booking_service.dart';
 import '../../utils/date_utils.dart';
 import 'booking_summary_screen.dart';
 import '../../widgets/booking_widgets.dart';
+import '../../widgets/rental_date_picker.dart';
 
 /// Rental Booking: rent dates + pickup / delivery selection (EV04, EV08).
 class BookingScreen extends StatefulWidget {
@@ -66,23 +67,17 @@ class _BookingScreenState extends State<BookingScreen> {
 
   Future<void> _pickDates() async {
     final today = AppDates.dateOnly(DateTime.now());
-    final picked = await showDateRangePicker(
+    final picked = await showRentalDatePicker(
       context: context,
       firstDate: today,
       lastDate: today.add(const Duration(days: BookingService.bookingWindowDays)),
-      initialDateRange: _start != null && _end != null
+      initialRange: _start != null && _end != null
           ? DateTimeRange(start: _start!, end: _end!)
           : null,
-      helpText: 'Select rental period',
-      saveText: 'Done',
-      selectableDayPredicate: (day, _, _) =>
-          !_unavailable.contains(AppDates.key(day)),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(primary: primaryRed),
-        ),
-        child: child!,
-      ),
+      unavailable: _unavailable,
+      maxDays: BookingService.maxRentalDays,
+      pricePerDay: widget.equipment.pricePerDay,
+      title: 'Pick your game days',
     );
     if (picked == null || !mounted) return;
 
@@ -225,7 +220,7 @@ class _BookingScreenState extends State<BookingScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _DateTile(
+                    child: DateTile(
                       label: 'Start date',
                       date: _start,
                       onTap: _pickDates,
@@ -233,7 +228,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _DateTile(
+                    child: DateTile(
                       label: 'End date',
                       date: _end,
                       onTap: _pickDates,
@@ -345,48 +340,6 @@ class _Label extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-    );
-  }
-}
-
-class _DateTile extends StatelessWidget {
-  final String label;
-  final DateTime? date;
-  final VoidCallback onTap;
-
-  const _DateTile({required this.label, required this.date, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: date != null ? primaryRed : borderGrey),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: textGrey, fontSize: 12)),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.calendar_today, size: 16, color: primaryRed),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    date == null ? 'Select' : AppDates.pretty(date!),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
