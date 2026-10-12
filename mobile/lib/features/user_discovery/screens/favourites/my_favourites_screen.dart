@@ -1,33 +1,35 @@
 import 'package:rent_lanka_mobile/features/provider/services/cloudinary_service.dart';
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../models/favourite_model.dart';
 
 import '../../services/favourite_service.dart';
 import '../equipment/equipment_details_screen.dart';
 
 class MyFavouritesScreen extends StatefulWidget {
-  const MyFavouritesScreen({super.key});
+  const MyFavouritesScreen({super.key, this.favouriteService});
+
+  final FavouriteService? favouriteService;
 
   @override
-  State<MyFavouritesScreen> createState() =>
-      _MyFavouritesScreenState();
+  State<MyFavouritesScreen> createState() => _MyFavouritesScreenState();
 }
 
 class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
   static const Color primaryRed = Color(0xFFED1C24);
   static const Color darkText = Color(0xFF171717);
 
-  final FavouriteService _favouriteService = FavouriteService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final FavouriteService _favouriteService =
+      widget.favouriteService ?? FavouriteService();
 
-  late final Stream<List<String>> _favouritesStream;
+  late final Stream<List<FavouriteEquipment>> _favouritesStream;
   final Set<String> _removingIds = {};
 
   @override
   void initState() {
     super.initState();
-    _favouritesStream = _favouriteService.getFavouriteEquipmentIds();
+    _favouritesStream = _favouriteService.watchFavouriteEquipment();
   }
 
   Future<void> _removeFavourite(String equipmentId) async {
@@ -53,9 +55,7 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Unable to remove favourite. Please try again.',
-          ),
+          content: Text('Unable to remove favourite. Please try again.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -70,11 +70,7 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
     }
   }
 
-  String _text(
-    Map<String, dynamic> data,
-    String key, [
-    String fallback = '',
-  ]) {
+  String _text(Map<String, dynamic> data, String key, [String fallback = '']) {
     final value = data[key];
 
     if (value == null) return fallback;
@@ -87,10 +83,9 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
     final price = equipment['pricePerDay'];
 
     if (price is num) {
-      final formatted = price.toStringAsFixed(0).replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (match) => ',',
-      );
+      final formatted = price
+          .toStringAsFixed(0)
+          .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',');
 
       return 'Rs. $formatted/day';
     }
@@ -133,10 +128,7 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => EquipmentDetailsScreen(
-          equipment: {
-            ...equipment,
-            'id': equipmentId,
-          },
+          equipment: {...equipment, 'id': equipmentId},
         ),
       ),
     );
@@ -153,25 +145,19 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
         foregroundColor: darkText,
         title: const Text(
           'My Favourites',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 19,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
         ),
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 18),
-            child: Icon(
-              Icons.favorite_rounded,
-              color: primaryRed,
-            ),
+            child: Icon(Icons.favorite_rounded, color: primaryRed),
           ),
         ],
       ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
-          child: StreamBuilder<List<String>>(
+          child: StreamBuilder<List<FavouriteEquipment>>(
             stream: _favouritesStream,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -184,15 +170,13 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
 
               if (!snapshot.hasData) {
                 return const Center(
-                  child: CircularProgressIndicator(
-                    color: primaryRed,
-                  ),
+                  child: CircularProgressIndicator(color: primaryRed),
                 );
               }
 
-              final equipmentIds = snapshot.data!;
+              final favourites = snapshot.data!;
 
-              if (equipmentIds.isEmpty) {
+              if (favourites.isEmpty) {
                 return _buildMessage(
                   Icons.favorite_border_rounded,
                   'No favourites yet',
@@ -202,11 +186,13 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: equipmentIds.length,
+                itemCount: favourites.length,
                 itemBuilder: (context, index) {
-                  final equipmentId = equipmentIds[index];
-
-                  return _buildFavouriteItem(equipmentId);
+                  final favourite = favourites[index];
+                  return KeyedSubtree(
+                    key: ValueKey(favourite.id),
+                    child: _buildFavouriteItem(favourite),
+                  );
                 },
               );
             },
@@ -216,221 +202,163 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
     );
   }
 
-  Widget _buildFavouriteItem(String equipmentId) {
-    return StreamBuilder<
-        DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _firestore
-          .collection('equipment')
-          .doc(equipmentId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _buildUnavailableCard(
-            equipmentId,
-            'Unable to load equipment',
-          );
-        }
+  Widget _buildFavouriteItem(FavouriteEquipment favourite) {
+    final equipmentId = favourite.id;
+    if (favourite.error != null) {
+      return _buildUnavailableCard(equipmentId, 'Unable to load equipment');
+    }
+    if (favourite.equipment == null) {
+      return _buildUnavailableCard(
+        equipmentId,
+        'Equipment listing no longer exists',
+      );
+    }
+    final equipment = favourite.equipment!;
 
-        if (!snapshot.hasData) {
-          return const Card(
-            margin: EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: EdgeInsets.all(22),
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: primaryRed,
-                  strokeWidth: 2,
+    final name = _text(equipment, 'name', 'Equipment');
+    final imageUrl = _text(equipment, 'imageUrl');
+    final available = _isAvailable(equipment);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: const BorderSide(color: Color(0xFFEEEEEE)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: () => _openEquipmentDetails(equipmentId, equipment),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 95,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F7F7),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-            ),
-          );
-        }
-
-        if (!snapshot.data!.exists) {
-          return _buildUnavailableCard(
-            equipmentId,
-            'Equipment listing no longer exists',
-          );
-        }
-
-        final equipment = snapshot.data!.data() ?? {};
-
-        final name = _text(equipment, 'name', 'Equipment');
-        final imageUrl = _text(equipment, 'imageUrl');
-        final available = _isAvailable(equipment);
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 0,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-            side: const BorderSide(
-              color: Color(0xFFEEEEEE),
-            ),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(15),
-            onTap: () => _openEquipmentDetails(
-              equipmentId,
-              equipment,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 95,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F7F7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: imageUrl.startsWith('http://') ||
-                            imageUrl.startsWith('https://')
-                        ? Image.network(
-                            equipmentThumbnailUrl(imageUrl),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, error, stackTrace) {
-                              return Icon(
-                                _categoryIcon(equipment),
-                                size: 48,
-                                color: Colors.grey,
-                              );
-                            },
-                          )
-                        : Icon(
+                clipBehavior: Clip.antiAlias,
+                child:
+                    imageUrl.startsWith('http://') ||
+                        imageUrl.startsWith('https://')
+                    ? Image.network(
+                        equipmentThumbnailUrl(imageUrl),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, error, stackTrace) {
+                          return Icon(
                             _categoryIcon(equipment),
                             size: 48,
                             color: Colors.grey,
-                          ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                          );
+                        },
+                      )
+                    : Icon(
+                        _categoryIcon(equipment),
+                        size: 48,
+                        color: Colors.grey,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _formatPrice(equipment),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: primaryRed,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        Text(
-                          name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: darkText,
-                          ),
+                        Icon(
+                          available
+                              ? Icons.check_circle_outline
+                              : Icons.cancel_outlined,
+                          color: available ? Colors.green : primaryRed,
+                          size: 15,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _formatPrice(equipment),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: primaryRed,
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            available ? 'Available' : 'Unavailable',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: available ? Colors.green : primaryRed,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              available
-                                  ? Icons.check_circle_outline
-                                  : Icons.cancel_outlined,
-                              color: available
-                                  ? Colors.green
-                                  : primaryRed,
-                              size: 15,
-                            ),
-                            const SizedBox(width: 5),
-                            Flexible(
-                              child: Text(
-                                available
-                                    ? 'Available'
-                                    : 'Unavailable',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: available
-                                      ? Colors.green
-                                      : primaryRed,
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Remove from favourites',
-                    onPressed: _removingIds.contains(equipmentId)
-                        ? null
-                        : () => _removeFavourite(equipmentId),
-                    icon: _removingIds.contains(equipmentId)
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: primaryRed,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.favorite_rounded,
-                            color: primaryRed,
-                          ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildUnavailableCard(
-    String equipmentId,
-    String message,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: const Icon(
-          Icons.inventory_2_outlined,
-          color: Colors.grey,
-        ),
-        title: Text(message),
-        subtitle: const Text('You can remove this favourite.'),
-        trailing: IconButton(
-          onPressed: _removingIds.contains(equipmentId)
-              ? null
-              : () => _removeFavourite(equipmentId),
-          icon: const Icon(
-            Icons.favorite_rounded,
-            color: primaryRed,
+              IconButton(
+                tooltip: 'Remove from favourites',
+                onPressed: _removingIds.contains(equipmentId)
+                    ? null
+                    : () => _removeFavourite(equipmentId),
+                icon: _removingIds.contains(equipmentId)
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: primaryRed,
+                        ),
+                      )
+                    : const Icon(Icons.favorite_rounded, color: primaryRed),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMessage(
-    IconData icon,
-    String title,
-    String subtitle,
-  ) {
+  Widget _buildUnavailableCard(String equipmentId, String message) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: const Icon(Icons.inventory_2_outlined, color: Colors.grey),
+        title: Text(message),
+        subtitle: const Text('You can remove this favourite.'),
+        trailing: IconButton(
+          onPressed: _removingIds.contains(equipmentId)
+              ? null
+              : () => _removeFavourite(equipmentId),
+          icon: const Icon(Icons.favorite_rounded, color: primaryRed),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessage(IconData icon, String title, String subtitle) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(25),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 64,
-              color: const Color(0xFFBBBBBB),
-            ),
+            Icon(icon, size: 64, color: const Color(0xFFBBBBBB)),
             const SizedBox(height: 16),
             Text(
               title,
@@ -445,10 +373,7 @@ class _MyFavouritesScreenState extends State<MyFavouritesScreen> {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF888888),
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
             ),
           ],
         ),

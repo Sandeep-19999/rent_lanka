@@ -18,6 +18,8 @@ class ProfileService {
        _auth = auth ?? FirebaseAuth.instance,
        _cloudinary = cloudinary ?? CloudinaryService();
 
+  User? get currentUser => _auth.currentUser;
+
   String get currentUserId {
     final user = _auth.currentUser;
 
@@ -76,6 +78,18 @@ class ProfileService {
     if (uid != expectedUserId) {
       throw StateError('Your login changed. Please reopen Edit Profile.');
     }
+    if (name.trim().isEmpty) {
+      throw ArgumentError('Please enter your full name.');
+    }
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim())) {
+      throw ArgumentError('Please enter a valid email address.');
+    }
+    if (phone.trim().length < 9) {
+      throw ArgumentError('Please enter a valid phone number.');
+    }
+    if (location.trim().isEmpty) {
+      throw ArgumentError('Please enter your location.');
+    }
     final photos = photoChanges(
       photoUrl: photoUrl,
       photoPublicId: photoPublicId,
@@ -88,7 +102,6 @@ class ProfileService {
         await documentReference.get();
 
     final Map<String, dynamic> data = {
-      'userId': uid,
       'name': name.trim(),
       'email': email.trim(),
       'phone': phone.trim(),
@@ -98,13 +111,12 @@ class ProfileService {
     };
 
     if (!existing.exists) {
-      data['createdAt'] = FieldValue.serverTimestamp();
-      data['isVerified'] = true;
+      throw StateError('Your profile could not be found. Please log in again.');
     }
 
     if (currentUserId != uid) {
       throw StateError('Your login changed. Please reopen Edit Profile.');
     }
-    await documentReference.set(data, SetOptions(merge: true));
+    await documentReference.update(data);
   }
 }

@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/bank_account_model.dart';
 import '../models/rental_request_model.dart';
 import '../models/withdrawal_model.dart';
+import '../models/withdrawal_request.dart';
 
 class WithdrawalService {
   final FirebaseFirestore _firestore;
@@ -300,7 +301,7 @@ class WithdrawalService {
     required double amount,
     required String bankAccountId,
   }) async {
-    if (amount <= 0) {
+    if (!amount.isFinite || amount <= 0) {
       throw Exception(
         'Please enter a valid withdrawal amount.',
       );
@@ -340,20 +341,12 @@ class WithdrawalService {
       );
     }
 
-    await _withdrawalsCollection.add({
-      'providerId': _providerId,
-      'bankAccountId': bankAccount.id,
-      'bankName': bankAccount.bankName,
-      'accountHolderName':
-          bankAccount.accountHolderName,
-      'accountLast4':
-          bankAccount.accountLast4,
-      'branch': bankAccount.branch,
-      'amount': amount,
-      'status': 'pending',
-      'requestedAt':
-          FieldValue.serverTimestamp(),
-    });
+    await _withdrawalsCollection.add(WithdrawalRequest.toFirestore(
+      providerId: _providerId,
+      bankAccount: bankAccount,
+      amount: amount,
+      requestedAt: FieldValue.serverTimestamp(),
+    ));
   }
 
   static String _formatPrice(

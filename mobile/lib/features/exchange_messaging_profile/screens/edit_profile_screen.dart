@@ -9,7 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  const EditProfileScreen({super.key, this.profileService});
+
+  final ProfileService? profileService;
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -21,7 +23,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   static const Color borderColor = Color(0xFFE4E4E4);
   static const Color backgroundColor = Color(0xFFF8F8F8);
 
-  final ProfileService _profileService = ProfileService();
+  late final ProfileService _profileService = widget.profileService ?? ProfileService();
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -60,7 +62,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _loadedUserId = uid;
       final data = document.data();
 
-      final User? firebaseUser = FirebaseAuth.instance.currentUser;
+      final User? firebaseUser = _profileService.currentUser;
 
       _nameController.text =
           data?['name']?.toString() ?? firebaseUser?.displayName ?? '';
@@ -126,7 +128,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _saveChanges() async {
     if (_isSaving || _isLoading || _isPickingPhoto) return;
     if (_loadedUserId == null ||
-        FirebaseAuth.instance.currentUser?.uid != _loadedUserId) {
+        _profileService.currentUser?.uid != _loadedUserId) {
       _showMessage('Please log in and reopen Edit Profile.');
       return;
     }

@@ -46,6 +46,7 @@ class ReviewAuth extends Fake implements FirebaseAuth {
 class ReviewStore extends Fake implements FirebaseFirestore {
   final changes = StreamController<void>.broadcast();
   final queryIds = <String>[];
+  final ownerQueryIds = <String>[];
   Object? readError;
   int clock = 200;
   final records = <String, Map<String, dynamic>>{
@@ -103,6 +104,9 @@ class ReviewStore extends Fake implements FirebaseFirestore {
     for (final entry in transaction.pending.entries) {
       records[entry.key] = {...?records[entry.key], ...resolve(entry.value)};
     }
+    for (final path in transaction.deleted) {
+      records.remove(path);
+    }
     emit();
     return result;
   }
@@ -110,11 +114,17 @@ class ReviewStore extends Fake implements FirebaseFirestore {
 
 class ReviewCollection extends Fake
     implements CollectionReference<Map<String, dynamic>> {
-  ReviewCollection(this.store, this.path, [this.equipmentId]);
+  ReviewCollection(
+    this.store,
+    this.path, [
+    this.equipmentId,
+    this.filterField = 'equipmentId',
+  ]);
   final ReviewStore store;
   @override
   final String path;
   final String? equipmentId;
+  final String filterField;
   @override
   DocumentReference<Map<String, dynamic>> doc([String? id]) =>
       ReviewReference(store, '$path/$id');
@@ -134,9 +144,13 @@ class ReviewCollection extends Fake
     bool? isNull,
   }) {
     expect(path, 'reviews');
-    expect(field, 'equipmentId');
-    store.queryIds.add(isEqualTo as String);
-    return ReviewCollection(store, path, isEqualTo);
+    expect(['equipmentId', 'reviewerId'], contains(field));
+    if (field == 'equipmentId') {
+      store.queryIds.add(isEqualTo as String);
+    } else {
+      store.ownerQueryIds.add(isEqualTo as String);
+    }
+    return ReviewCollection(store, path, isEqualTo, field as String);
   }
 
   @override
@@ -153,7 +167,7 @@ class ReviewCollection extends Fake
         ReviewSnapshot([
           for (final entry in store.records.entries)
             if (entry.key.startsWith('$path/') &&
-                entry.value['equipmentId'] == equipmentId)
+                entry.value[filterField] == equipmentId)
               ReviewDocument(entry.key.split('/').last, Map.from(entry.value)),
         ]),
       );
@@ -194,6 +208,13 @@ class ReviewTransaction extends Fake implements Transaction {
   ReviewTransaction(this.store);
   final ReviewStore store;
   final pending = <String, Map<String, dynamic>>{};
+  final deleted = <String>{};
+  @override
+  Transaction delete(DocumentReference<Object?> reference) {
+    deleted.add(reference.path);
+    return this;
+  }
+
   @override
   Future<DocumentSnapshot<T>> get<T>(DocumentReference<T> reference) async =>
       await (reference as ReviewReference).get() as DocumentSnapshot<T>;
@@ -209,6 +230,8 @@ class ReviewTransaction extends Fake implements Transaction {
 }
 
 class ReviewRentals extends Fake implements CompletedRentalService {
+  ReviewRentals([this.extra = const []]);
+  final List<ReviewEquipmentOption> extra;
   @override
   Stream<List<ReviewEquipmentOption>> watchCompletedRentals() => Stream.value([
     const ReviewEquipmentOption(
@@ -225,6 +248,7 @@ class ReviewRentals extends Fake implements CompletedRentalService {
       equipmentName: 'Unrelated Ball',
       rentedDate: '8 Oct 2026',
     ),
+    ...extra,
   ]);
 }
 
@@ -473,6 +497,237 @@ void main() {
     expect(find.text('4.0'), findsNothing);
     expect(store.queryIds, ['bat', 'ball']);
   });
+  testWidgets(
+    'booking review stays on its item without a completed-item selector',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RateReviewScreen(
+            initialBookingId: 'own-rental',
+            reviewService: service,
+            completedRentalService: ReviewRentals(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Cricket Bat'), findsOneWidget);
+      expect(find.text('Unrelated Ball'), findsNothing);
+      expect(find.text('Booking: own-rental'), findsOneWidget);
+      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
+      await tester.tap(find.text('Cricket Bat'));
+      await tester.pumpAndSettle();
+      expect(find.text('Select completed rental'), findsNothing);
+    },
+  );
+  testWidgets(
+    'missing requested booking never falls back to another completed item',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RateReviewScreen(
+            initialBookingId: 'missing',
+            reviewService: service,
+            completedRentalService: ReviewRentals(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Submit Review'), findsNothing);
+      expect(find.text('Cricket Bat'), findsNothing);
+      expect(find.text('Unrelated Ball'), findsNothing);
+    },
+  );
+  testWidgets(
+    'generic review entry directs the user to bookings without silently selecting an item',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RateReviewScreen(
+            reviewService: service,
+            completedRentalService: ReviewRentals(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('My Bookings'), findsOneWidget);
+      expect(find.text('Submit Review'), findsNothing);
+      expect(find.text('Cricket Bat'), findsNothing);
+    },
+  );
+  testWidgets('equipment editor reviews only the item used to open it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RateReviewScreen(
+          equipmentId: 'bat',
+          showEditor: true,
+          reviewService: service,
+          completedRentalService: ReviewRentals(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Cricket Bat'), findsOneWidget);
+    expect(find.text('Unrelated Ball'), findsNothing);
+    expect(find.text('Submit Review'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
+  });
+  testWidgets(
+    'submitted reviews reopen their exact booking for edit and delete from My Reviews',
+    (tester) async {
+      store.records['equipment/bat'] = {'name': 'Cricket Bat'};
+      store.records['rental_requests/history'] = {
+        'playerId': 'player',
+        'providerId': 'provider',
+        'equipmentId': 'bat',
+        'status': 'completed',
+      };
+      await service.saveReview(
+        providerId: 'provider',
+        equipmentId: 'bat',
+        bookingId: 'own-rental',
+        rating: 4,
+        comment: 'Keep my other review',
+      );
+      await service.saveReview(
+        providerId: 'provider',
+        equipmentId: 'bat',
+        bookingId: 'history',
+        rating: 2,
+        comment: 'My earlier review',
+      );
+      final rentals = ReviewRentals([
+        const ReviewEquipmentOption(
+          equipmentId: 'bat',
+          providerId: 'provider',
+          bookingId: 'history',
+          equipmentName: 'Cricket Bat',
+          rentedDate: '1 Oct 2026',
+        ),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RateReviewScreen(
+            reviewService: service,
+            completedRentalService: rentals,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(store.ownerQueryIds, ['player']);
+      expect(find.text('My earlier review'), findsOneWidget);
+      expect(find.text('Excellent bat'), findsNothing);
+      final historyCard = find.byKey(
+        const ValueKey('equipment-review-player_history'),
+      );
+      await tapVisible(
+        tester,
+        find.descendant(
+          of: historyCard,
+          matching: find.widgetWithText(TextButton, 'Edit'),
+        ),
+      );
+      expect(find.text('Booking: history'), findsOneWidget);
+      expect(find.text('My earlier review'), findsOneWidget);
+      await tester.enterText(
+        find.byType(TextField),
+        'My updated earlier review',
+      );
+      await tapVisible(tester, find.text('Update Review'));
+      expect(
+        store.records['reviews/player_history']?['comment'],
+        'My updated earlier review',
+      );
+      expect(
+        store.records['reviews/player_own-rental']?['comment'],
+        'Keep my other review',
+      );
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('My updated earlier review'), findsOneWidget);
+      await tapVisible(
+        tester,
+        find.descendant(
+          of: historyCard,
+          matching: find.widgetWithText(TextButton, 'Delete'),
+        ),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Keep Review'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(store.records.containsKey('reviews/player_history'), isTrue);
+      await tapVisible(
+        tester,
+        find.descendant(
+          of: historyCard,
+          matching: find.widgetWithText(TextButton, 'Delete'),
+        ),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Delete'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(store.records.containsKey('reviews/player_history'), isFalse);
+      expect(find.text('My updated earlier review'), findsNothing);
+      expect(store.records.containsKey('reviews/player_own-rental'), isTrue);
+      expect(store.records.containsKey('reviews/alice_rental'), isTrue);
+    },
+  );
+  testWidgets(
+    'equipment review cards expose edit/delete only for the current owner',
+    (tester) async {
+      await service.saveReview(
+        providerId: 'provider',
+        equipmentId: 'bat',
+        bookingId: 'own-rental',
+        rating: 4,
+        comment: 'My review',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RateReviewScreen(
+            equipmentId: 'bat',
+            reviewService: service,
+            completedRentalService: ReviewRentals(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Delete'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('equipment-review-alice_rental')),
+          matching: find.widgetWithText(TextButton, 'Edit'),
+        ),
+        findsNothing,
+      );
+    },
+  );
+  test(
+    'delete rejects an inconsistent review owner before mutating the record',
+    () async {
+      store.records['reviews/player_own-rental'] = {
+        'reviewerId': 'other',
+        'bookingId': 'own-rental',
+        'equipmentId': 'bat',
+        'comment': 'Other review',
+      };
+      await expectLater(service.deleteReview('own-rental'), throwsStateError);
+      expect(
+        store.records['reviews/player_own-rental']?['comment'],
+        'Other review',
+      );
+    },
+  );
   testWidgets('legacy review entry still opens the existing editor', (
     tester,
   ) async {
