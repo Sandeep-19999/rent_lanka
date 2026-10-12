@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:rent_lanka_mobile/features/exchange_messaging_profile/services/profile_service.dart';
 import 'package:rent_lanka_mobile/features/exchange_messaging_profile/widgets/notification_icon_with_badge.dart';
 import 'package:rent_lanka_mobile/features/provider/services/cloudinary_service.dart';
 import 'package:rent_lanka_mobile/navigation/player_bottom_navigation.dart';
@@ -37,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late final Stream<List<EquipmentModel>> _equipmentStream;
 
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _profileSubscription;
   String _userName = 'Player';
   String? _selectedCategory;
 
@@ -67,11 +71,19 @@ class _HomeScreenState extends State<HomeScreen> {
       name = user.email!.split('@').first;
     }
 
-    if (name.isNotEmpty) {
-      setState(() {
-        _userName = name;
-      });
-    }
+    if (name.isNotEmpty) _userName = name;
+    final fallbackName = _userName;
+    _profileSubscription = ProfileService().watchProfile().listen((snapshot) {
+      if (!mounted) return;
+      final savedName = snapshot.data()?['name']?.toString().trim() ?? '';
+      setState(() => _userName = savedName.isEmpty ? fallbackName : savedName);
+    }, onError: (Object error) { /* Keep the existing greeting if reads fail. */ });
+  }
+
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
   }
 
   IconData _getEquipmentIcon(String category) {
