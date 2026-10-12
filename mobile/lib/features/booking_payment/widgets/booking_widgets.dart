@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/booking_model.dart';
 import '../models/equipment_model.dart';
+import '../utils/date_utils.dart';
 
 const Color primaryRed = Color(0xFFED1235);
 const Color textGrey = Color(0xFF8A8A8A);
@@ -385,6 +386,49 @@ class BookingSteps extends StatelessWidget {
           if (i < _labels.length - 1) const SizedBox(width: 6),
         ],
       ],
+    );
+  }
+}
+
+/// Tappable start / end date box used by the booking and edit screens.
+class DateTile extends StatelessWidget {
+  final String label;
+  final DateTime? date;
+  final VoidCallback onTap;
+
+  const DateTile({super.key, required this.label, required this.date, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: date != null ? primaryRed : borderGrey),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: textGrey, fontSize: 12)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 16, color: primaryRed),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    date == null ? 'Select' : AppDates.pretty(date!),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
