@@ -30,6 +30,51 @@ class _WithdrawFundsScreenState
   String? selectedBankId;
 
   bool isSubmitting = false;
+  bool isDeletingBank = false;
+
+  Future<void> _deleteBankAccount(BankAccountModel account) async {
+    if (isSubmitting || isDeletingBank) return;
+    setState(() => isDeletingBank = true);
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Delete bank account?'),
+          content: Text(
+            'Remove ${account.bankName} (${account.maskedAccountNumber}) '
+            'from your saved accounts? Existing withdrawal requests '
+            'will keep their original bank details.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Delete', style: TextStyle(color: primaryRed)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      await _withdrawalService.deleteBankAccount(account.id);
+      if (!mounted) return;
+      setState(() {
+        if (selectedBankId == account.id) selectedBankId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bank account deleted.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to delete bank account: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => isDeletingBank = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -87,7 +132,7 @@ class _WithdrawFundsScreenState
     required List<BankAccountModel>
         bankAccounts,
   }) async {
-    if (isSubmitting) {
+    if (isSubmitting || isDeletingBank) {
       return;
     }
 
@@ -733,7 +778,7 @@ class _WithdrawFundsScreenState
                     child:
                         ElevatedButton(
                       onPressed:
-                          isSubmitting
+                          isSubmitting || isDeletingBank
                               ? null
                               : () {
                                   _confirmWithdrawal(
@@ -956,6 +1001,13 @@ class _WithdrawFundsScreenState
                 color:
                     primaryRed,
               ),
+            IconButton(
+              tooltip: 'Delete bank account',
+              onPressed: isSubmitting || isDeletingBank
+                  ? null
+                  : () => _deleteBankAccount(account),
+              icon: const Icon(Icons.delete_outline, color: primaryRed),
+            ),
           ],
         ),
       ),

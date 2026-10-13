@@ -144,9 +144,19 @@ class WithdrawalService {
   Future<void> deleteBankAccount(
     String accountId,
   ) async {
-    await _bankAccountsCollection
-        .doc(accountId)
-        .delete();
+    final providerId = _providerId;
+    final reference = _bankAccountsCollection.doc(accountId);
+    await _firestore.runTransaction((transaction) async {
+      final document = await transaction.get(reference);
+      if (_auth.currentUser?.uid != providerId) {
+        throw Exception('Your session changed. Please sign in again.');
+      }
+      if (!document.exists) return;
+      if (document.data()?['providerId'] != providerId) {
+        throw Exception('You can only delete your own bank accounts.');
+      }
+      transaction.delete(reference);
+    });
   }
 
   // =========================================================
